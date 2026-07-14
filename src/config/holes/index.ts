@@ -5,9 +5,20 @@ import { HOLE_2 } from './hole-2-dogleg';
 import { HOLE_3 } from './hole-3-windmill';
 import { HOLE_4 } from './hole-4-bumpers';
 import { HOLE_5 } from './hole-5-waterfall';
+import { HOLE_6 } from './hole-6-gate';
+import { HOLE_7 } from './hole-7-volcano';
 import type { HoleConfig } from '@/contracts/HoleConfig';
 
-export const HOLES: HoleConfig[] = [HOLE_0_RANGE, HOLE_1, HOLE_2, HOLE_3, HOLE_4, HOLE_5];
+export const HOLES: HoleConfig[] = [
+  HOLE_0_RANGE,
+  HOLE_1,
+  HOLE_2,
+  HOLE_3,
+  HOLE_4,
+  HOLE_5,
+  HOLE_6,
+  HOLE_7,
+];
 
 // Placeholder metadata for holes not yet implemented — used by CourseMap
 // to render the locked pins.
@@ -27,8 +38,8 @@ export const ALL_PINS: PinMeta[] = [
   { id: 3, name: 'The Windmill', par: 3, difficulty: 2, implemented: true, frontNine: true },
   { id: 4, name: 'The Bumper Alley', par: 3, difficulty: 2, implemented: true, frontNine: true },
   { id: 5, name: 'The Waterfall', par: 3, difficulty: 3, implemented: true, frontNine: true },
-  { id: 6, name: 'The Sliding Gate', par: 3, difficulty: 3, implemented: false, frontNine: true },
-  { id: 7, name: 'The Volcano Green', par: 3, difficulty: 3, implemented: false, frontNine: true },
+  { id: 6, name: 'The Sliding Gate', par: 3, difficulty: 3, implemented: true, frontNine: true },
+  { id: 7, name: 'The Volcano Green', par: 3, difficulty: 3, implemented: true, frontNine: true },
   { id: 8, name: 'The Loop-the-Loop', par: 2, difficulty: 4, implemented: false, frontNine: true },
   { id: 9, name: 'The Pit', par: 3, difficulty: 3, implemented: false, frontNine: true },
   { id: 10, name: 'The Tunnel Fork', par: 3, difficulty: 3, implemented: false, frontNine: false },

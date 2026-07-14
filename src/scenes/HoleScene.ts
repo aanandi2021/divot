@@ -13,6 +13,8 @@ import { Windmill } from '@/entities/Windmill';
 import { Bumper } from '@/entities/Bumper';
 import { Slope } from '@/entities/Slope';
 import { WaterHazard } from '@/entities/WaterHazard';
+import { SlidingGate } from '@/entities/SlidingGate';
+import { SandTrap } from '@/entities/SandTrap';
 import { drawCup, CUP_CAPTURE_RADIUS, CUP_MAX_CAPTURE_SPEED } from '@/entities/Cup';
 import { drawTeeMat } from '@/entities/TeeMat';
 import { AimSystem } from '@/systems/AimSystem';
@@ -33,6 +35,7 @@ export class HoleScene extends Phaser.Scene {
   private hudShots!: HudChip;
   private hudBest!: HudChip;
   private windmills: Windmill[] = [];
+  private gates: SlidingGate[] = [];
 
   constructor() {
     super('Hole');
@@ -66,6 +69,7 @@ export class HoleScene extends Phaser.Scene {
 
     // Draw obstacles (windmills etc.)
     this.windmills = [];
+    this.gates = [];
     for (const o of this.cfg.obstacles) {
       if (o.kind === 'windmill') {
         this.windmills.push(
@@ -79,6 +83,10 @@ export class HoleScene extends Phaser.Scene {
         );
       } else if (o.kind === 'bumper') {
         new Bumper(this, o.x, o.y, o.radius);
+      } else if (o.kind === 'sliding-gate') {
+        this.gates.push(
+          new SlidingGate(this, { x: o.x, y: o.y, w: o.w, h: o.h, range: o.range, period: o.period })
+        );
       }
     }
 
@@ -101,6 +109,11 @@ export class HoleScene extends Phaser.Scene {
     // Slopes — need the ball reference so must be constructed after
     for (const s of this.cfg.slopes) {
       new Slope(this, this.ball, { x: s.x, y: s.y, w: s.w, h: s.h, gravity: s.gravity });
+    }
+
+    // Sand traps — same, need the ball reference for friction switching
+    for (const s of this.cfg.hazards.sand) {
+      new SandTrap(this, this.ball, s.x, s.y, s.w, s.h);
     }
 
     // Aim
@@ -129,7 +142,7 @@ export class HoleScene extends Phaser.Scene {
         const ballBody = a.label === 'ball' ? a : b.label === 'ball' ? b : null;
         if (!ballBody) continue;
         const other = a === ballBody ? b.label : a.label;
-        if (other === 'wall' || other === 'windmill' || other === 'windmill-base' || other === 'bumper') {
+        if (other === 'wall' || other === 'windmill' || other === 'windmill-base' || other === 'bumper' || other === 'gate') {
           this.audio.bounce(Math.hypot(ballBody.velocity.x, ballBody.velocity.y));
         } else if (other === 'water' && !this.complete) {
           this.handleWater();
@@ -145,8 +158,9 @@ export class HoleScene extends Phaser.Scene {
   }
 
   private tick(dt: number): void {
-    // Advance obstacles
+    // Advance moving obstacles
     for (const w of this.windmills) w.update(dt);
+    for (const g of this.gates) g.update(dt);
     this.ball.syncGraphics();
     const spd = this.ball.speed;
     if (spd > 0.3) this.audio.updateRoll(spd);
