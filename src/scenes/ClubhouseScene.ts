@@ -6,7 +6,6 @@ import Phaser from 'phaser';
 import { FONT_UI, FONT_MONO } from '@/util/fonts';
 import { ALL_PINS } from '@/config/holes';
 import { SaveSystem } from '@/systems/SaveSystem';
-import { isBackSixUnlocked } from '@/systems/UnlockSystem';
 import type { MedalTier } from '@/contracts/SaveState';
 
 export class ClubhouseScene extends Phaser.Scene {
@@ -42,10 +41,9 @@ export class ClubhouseScene extends Phaser.Scene {
 
     // Save summary
     const save = SaveSystem.load();
-    const unlocked = isBackSixUnlocked(save);
-    if (unlocked && !save.backSixUnlocked) {
-      SaveSystem.save(SaveSystem.setUnlocked(save, true));
-    }
+    // Force-unlock Back Six for playtest (per current build)
+    if (!save.backSixUnlocked) SaveSystem.save(SaveSystem.setUnlocked(save, true));
+    const unlocked = true;
     const bronzeCount = Object.values(save.medals).filter((m) => m === 'bronze').length;
     const silverCount = Object.values(save.medals).filter((m) => m === 'silver').length;
     const goldCount = Object.values(save.medals).filter((m) => m === 'gold').length;

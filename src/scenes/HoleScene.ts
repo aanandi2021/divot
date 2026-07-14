@@ -19,7 +19,7 @@ import { LoopRamp } from '@/entities/LoopRamp';
 import { Tunnel } from '@/entities/Tunnel';
 import { Pendulum } from '@/entities/Pendulum';
 import { Ferry } from '@/entities/Ferry';
-import { drawCup, CUP_CAPTURE_RADIUS, CUP_MAX_CAPTURE_SPEED } from '@/entities/Cup';
+import { Cup, CUP_CAPTURE_RADIUS, CUP_MAX_CAPTURE_SPEED, drawCup } from '@/entities/Cup';
 import { drawTeeMat } from '@/entities/TeeMat';
 import { AimSystem } from '@/systems/AimSystem';
 import { AudioSystem } from '@/systems/AudioSystem';
@@ -42,6 +42,8 @@ export class HoleScene extends Phaser.Scene {
   private gates: SlidingGate[] = [];
   private pendulums: Pendulum[] = [];
   private ferries: Ferry[] = [];
+  private waters: WaterHazard[] = [];
+  private cups: Cup[] = [];
 
   constructor() {
     super('Hole');
@@ -129,16 +131,18 @@ export class HoleScene extends Phaser.Scene {
     }
 
     // Draw water hazards (BEFORE ball so it renders below)
+    this.waters = [];
     for (const w of this.cfg.hazards.water) {
-      new WaterHazard(this, w.x, w.y, w.w, w.h);
+      this.waters.push(new WaterHazard(this, w.x, w.y, w.w, w.h));
     }
 
     // Tee mat
     drawTeeMat(this, this.cfg.tee.x - 24, this.cfg.tee.y - 12, 48, 24, `TEE ${this.cfg.id}`);
 
     // Cup
+    this.cups = [];
     if (this.cfg.cup.radius && this.cfg.cup.radius > 0) {
-      drawCup(this, this.cfg.cup.x, this.cfg.cup.y, String(this.cfg.id));
+      this.cups.push(drawCup(this, this.cfg.cup.x, this.cfg.cup.y, String(this.cfg.id)));
     }
 
     // Ball
@@ -213,11 +217,13 @@ export class HoleScene extends Phaser.Scene {
   }
 
   private tick(dt: number): void {
-    // Advance moving obstacles
+    // Advance moving obstacles + ambient animations
     for (const w of this.windmills) w.update(dt);
     for (const g of this.gates) g.update(dt);
     for (const p of this.pendulums) p.update(dt);
     for (const f of this.ferries) f.update(dt);
+    for (const w of this.waters) w.update(dt);
+    for (const c of this.cups) c.update(dt);
     this.ball.syncGraphics();
     const spd = this.ball.speed;
     if (spd > 0.3) this.audio.updateRoll(spd);

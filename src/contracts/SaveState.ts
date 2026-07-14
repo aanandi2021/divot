@@ -19,8 +19,8 @@ export function emptySave(): SaveState {
     version: 1,
     medals: {},
     bestScores: {},
-    backSixUnlocked: false,
-    hasSeenBackSixCelebration: false,
+    backSixUnlocked: true, // all levels open for playtest
+    hasSeenBackSixCelebration: true,
     mutedAudio: false,
   };
 }
