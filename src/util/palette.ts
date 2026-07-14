@@ -1,0 +1,35 @@
+export const PAL = {
+  grass: 0x5a8a3a,
+  grassDark: 0x3f6a2a,
+  grassLight: 0x7ba85a,
+  concrete: 0xb8b0a4,
+  wood: 0x8a5a28,
+  woodEdge: 0x3a1808,
+  woodHighlight: 0xa87038,
+  water: 0x3a78a0,
+  waterDark: 0x1a4868,
+  waterHighlight: 0xa8c8dc,
+  sand: 0xf4e0a0,
+  sandEdge: 0x8a6820,
+  ball: 0xffffff,
+  ballDim: 0xbbb0a0,
+  cup: 0x000000,
+  flagPole: 0xc8b088,
+  flag: 0xc8382a,
+  tee: 0x2a2a2a,
+  teeMark: 0xe8c848,
+  aimDot: 0xffe030,
+  aimLine: 0xffe030,
+  hudBg: 0x1a1510,
+  hudBorder: 0x8a6a3a,
+  hudText: 0xf0d670,
+  hudTextDim: 0xa89880,
+  medalBronze: 0xc87a3a,
+  medalSilver: 0xd0d0d0,
+  medalGold: 0xf0c840,
+  danger: 0xc04a3a,
+} as const;
+
+export function css(hex: number): string {
+  return '#' + hex.toString(16).padStart(6, '0');
+}
