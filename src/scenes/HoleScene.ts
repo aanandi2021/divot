@@ -9,6 +9,7 @@ import { GAME } from '@/config/game';
 import { PAL } from '@/util/palette';
 import { Ball, BALL_FRICTION_AIR } from '@/entities/Ball';
 import { Wall } from '@/entities/Wall';
+import { Windmill } from '@/entities/Windmill';
 import { drawCup, CUP_CAPTURE_RADIUS, CUP_MAX_CAPTURE_SPEED } from '@/entities/Cup';
 import { drawTeeMat } from '@/entities/TeeMat';
 import { AimSystem } from '@/systems/AimSystem';
@@ -28,6 +29,7 @@ export class HoleScene extends Phaser.Scene {
   private complete = false;
   private hudShots!: HudChip;
   private hudBest!: HudChip;
+  private windmills: Windmill[] = [];
 
   constructor() {
     super('Hole');
@@ -59,6 +61,23 @@ export class HoleScene extends Phaser.Scene {
     // Draw walls
     this.cfg.walls.forEach((w) => new Wall(this, w.x, w.y, w.w, w.h));
 
+    // Draw obstacles (windmills etc.)
+    this.windmills = [];
+    for (const o of this.cfg.obstacles) {
+      if (o.kind === 'windmill') {
+        this.windmills.push(
+          new Windmill(this, {
+            cx: o.x,
+            cy: o.y,
+            baseRadius: o.radius,
+            bladeLength: o.bladeLength,
+            rpm: o.rpm,
+          })
+        );
+      }
+      // Other obstacle kinds: TBD (bumper, sliding-gate, pendulum, ferry, tunnel, loop)
+    }
+
     // Tee mat
     drawTeeMat(this, this.cfg.tee.x - 24, this.cfg.tee.y - 12, 48, 24, `TEE ${this.cfg.id}`);
 
@@ -88,7 +107,7 @@ export class HoleScene extends Phaser.Scene {
       this.scene.start('Clubhouse')
     );
 
-    // Wall bounce sfx
+    // Wall / windmill bounce sfx
     this.matter.world.on('collisionstart', (event: Phaser.Physics.Matter.Events.CollisionStartEvent) => {
       for (const pair of event.pairs) {
         const a = pair.bodyA as unknown as { label: string; velocity: { x: number; y: number } };
@@ -96,7 +115,7 @@ export class HoleScene extends Phaser.Scene {
         const ballBody = a.label === 'ball' ? a : b.label === 'ball' ? b : null;
         if (!ballBody) continue;
         const other = a === ballBody ? b.label : a.label;
-        if (other === 'wall') {
+        if (other === 'wall' || other === 'windmill' || other === 'windmill-base') {
           this.audio.bounce(Math.hypot(ballBody.velocity.x, ballBody.velocity.y));
         }
       }
@@ -106,10 +125,12 @@ export class HoleScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown-ESC', () => this.scene.start('Clubhouse'));
 
     // Update loop
-    this.events.on('update', () => this.tick());
+    this.events.on('update', (_t: number, dt: number) => this.tick(dt));
   }
 
-  private tick(): void {
+  private tick(dt: number): void {
+    // Advance obstacles
+    for (const w of this.windmills) w.update(dt);
     this.ball.syncGraphics();
     const spd = this.ball.speed;
     if (spd > 0.3) this.audio.updateRoll(spd);

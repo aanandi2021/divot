@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>µ2 · Windmill collision micro-MVP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;height:100%;background:#2a2418;overflow:hidden;font-family:Fredoka,sans-serif}
+  #game{width:100%;height:100%}
+  .stamp{position:fixed;top:8px;left:8px;background:rgba(0,0,0,.55);color:#f0d670;font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 10px;border-radius:4px;letter-spacing:1px;z-index:100;pointer-events:none}
+  .criteria{position:fixed;top:8px;right:8px;background:rgba(0,0,0,.7);color:#f0d670;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:10px 14px;border-radius:6px;z-index:100;max-width:340px;line-height:1.5}
+  .criteria b{color:#f8e848}
+</style>
+</head>
+<body>
+<!--
+  µ2 · Windmill collision micro-MVP · Divot · 2026-07-14
+  Constitution IX Validation Ladder
+  ================================================================
+  RISK VALIDATED:
+  Does Phaser + Matter.js handle a rotating (kinematic-static) windmill
+  body vs a fast-moving ball, without tunneling or hitching?
+
+  PASS CRITERIA (all must hold):
+  1. Ball bounces off windmill blades at every tested RPM (5, 15, 30) with
+     no tunneling at max shot power.
+  2. Collision normal reads correctly (ball glances off blade at expected angle).
+  3. Blade timing feels fair — a well-timed shot slips through the gap
+     at 15 RPM.
+
+  IF FAILS: revise plan.md T103/T104 — may need to swap windmill for a
+  simpler timing gate (e.g. a sliding barrier) on Hole 3.
+-->
+<div class="stamp">µ2 · SKETCH · disposable prototype</div>
+<div class="criteria" id="criteria">
+  <b>µ2 · Windmill collision test</b><br>
+  Click ball → drag away → click to fire.<br>
+  Try to tunnel through the blades at max power.<br><br>
+  <b>Controls:</b> keys <b>[</b> / <b>]</b> to slow / speed up the blades.<br>
+  <b>Now:</b> <span id="rpm">15</span> RPM<br>
+  <b>Shots:</b> <span id="shots">0</span> · <b>Tunnels:</b> <span id="tunnels">0</span><br><br>
+  <span style="color:#a89880">Pass: 0 tunnels across 20+ shots at 5, 15, 30 RPM.</span>
+</div>
+<div id="game"></div>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+<script>
+const PAL = {
+  concrete:0xb8b0a4, grass:0x5a8a3a, grassDark:0x486828, grassLight:0x6a9a4a,
+  wood:0x8a5a28, woodEdge:0x3a1808, woodHi:0xa87038,
+  ball:0xffffff, aimLine:0xffe030, aimDot:0xffe030,
+  stone:0xa88858, stoneEdge:0x3a2818, blade:0xe8d8b0, bladeEdge:0x8a6a3a, hub:0x2a1808,
+};
+
+class MicroMVP extends Phaser.Scene {
+  constructor(){ super('µ2'); }
+  create(){
+    const {width:W, height:H} = this.scale;
+    this.rpm = 15;
+    this.shots = 0;
+    this.tunnels = 0;
+
+    // Background
+    this.add.rectangle(0,0,W,H,PAL.concrete).setOrigin(0);
+
+    // Playfield: 800x480 rect centered
+    const F = { x:(W-800)/2, y:(H-480)/2, w:800, h:480 };
+    const gr = this.add.graphics();
+    gr.fillStyle(PAL.grass, 1); gr.fillRect(F.x, F.y, F.w, F.h);
+    for(let i=0;i<600;i++){
+      gr.fillStyle(Math.random()<0.5 ? PAL.grassDark : PAL.grassLight, 0.5);
+      gr.fillCircle(F.x + Math.random()*F.w, F.y + Math.random()*F.h, 0.7);
+    }
+    // Walls (16px thick, wooden)
+    const T = 16;
+    this.buildWall(F.x-T, F.y-T, F.w+2*T, T);   // top
+    this.buildWall(F.x-T, F.y+F.h, F.w+2*T, T); // bottom
+    this.buildWall(F.x-T, F.y, T, F.h);         // left
+    this.buildWall(F.x+F.w, F.y, T, F.h);       // right
+
+    // Windmill in the center
+    const CX = F.x + F.w/2, CY = F.y + F.h/2;
+    this.windmillCx = CX; this.windmillCy = CY;
+    this.baseR = 32;
+    this.bladeLen = 130;
+    this.bladeWidth = 14;
+    this.buildWindmill(CX, CY);
+
+    // Ball at left tee
+    const teeX = F.x + 60, teeY = CY + 120;
+    this.ball = this.matter.add.image(teeX, teeY, '__DEFAULT');
+    this.ball.setVisible(false);
+    this.ball.setCircle(8);
+    this.ball.setFriction(0.02);
+    this.ball.setFrictionAir(0.025);
+    this.ball.setBounce(0.6);
+    this.ball.body.label = 'ball';
+    this.teeX = teeX; this.teeY = teeY;
+    this.ballGfx = this.add.graphics().setDepth(5);
+
+    // Aim
+    this.aim = { active:false, gfx: this.add.graphics().setDepth(20) };
+    this.readout = this.add.text(0,0,'',{
+      fontFamily:'IBM Plex Mono', fontSize:'12px', color:'#f0d670',
+      backgroundColor:'#000000aa', padding:{x:6,y:3}
+    }).setDepth(21).setVisible(false);
+    this.input.on('pointerdown', (p)=>this.onClick(p));
+    this.input.on('pointermove', (p)=>this.onMove(p));
+    this.input.keyboard.on('keydown-ESC', ()=>this.aimCancel());
+    this.input.keyboard.on('keydown-OPEN_BRACKET', ()=>this.setRpm(Math.max(0,this.rpm-5)));
+    this.input.keyboard.on('keydown-CLOSE_BRACKET', ()=>this.setRpm(Math.min(60,this.rpm+5)));
+    // Also number keys 1-5 = presets
+    this.input.keyboard.on('keydown-DIGIT1', ()=>this.setRpm(0));
+    this.input.keyboard.on('keydown-DIGIT2', ()=>this.setRpm(5));
+    this.input.keyboard.on('keydown-DIGIT3', ()=>this.setRpm(15));
+    this.input.keyboard.on('keydown-DIGIT4', ()=>this.setRpm(30));
+    this.input.keyboard.on('keydown-DIGIT5', ()=>this.setRpm(60));
+
+    // Track tunneling: if ball ends up on the OPPOSITE side of the windmill
+    // from where it was fired, at moment of stop, without ever colliding, we
+    // count a tunnel. Simpler heuristic: compare distance-to-center at fire
+    // vs at stop, and if the ball crossed the blade region without a collision
+    // event, count it. We use a collision counter per shot.
+    this.currentShotHits = 0;
+    this.currentShotFired = false;
+    this.currentShotStartSideX = 0;
+
+    this.matter.world.on('collisionstart', (event)=>{
+      for(const p of event.pairs){
+        const a = p.bodyA, b = p.bodyB;
+        const ballBody = a.label==='ball' ? a : (b.label==='ball' ? b : null);
+        if(!ballBody) continue;
+        const other = a===ballBody ? b.label : a.label;
+        if(other==='windmill') this.currentShotHits++;
+      }
+    });
+
+    // Help label
+    this.add.text(W/2, F.y - 22, '1..5 = 0/5/15/30/60 RPM · [ / ] = ±5 RPM · ESC = cancel aim', {
+      fontFamily:'IBM Plex Mono', fontSize:'11px', color:'#5a4a30'
+    }).setOrigin(0.5, 1);
+    this.add.text(W/2, F.y + F.h + 22, 'goal: fire past the blades. try to tunnel through at max power.', {
+      fontFamily:'IBM Plex Mono', fontSize:'11px', color:'#5a4a30'
+    }).setOrigin(0.5, 0);
+
+    this.setRpm(15);
+  }
+
+  buildWall(x,y,w,h){
+    const g = this.add.graphics().setDepth(1);
+    g.fillStyle(0x000000, 0.3); g.fillRect(x+3, y+4, w, h);
+    g.fillStyle(PAL.wood, 1); g.fillRect(x, y, w, h);
+    g.fillStyle(PAL.woodHi, 1); g.fillRect(x, y, w, 2);
+    g.lineStyle(1.5, PAL.woodEdge, 1); g.strokeRect(x+0.75, y+0.75, w-1.5, h-1.5);
+    this.matter.add.rectangle(x + w/2, y + h/2, w, h, {
+      isStatic:true, friction:0.05, restitution:0.7, label:'wall'
+    });
+  }
+
+  buildWindmill(cx, cy){
+    // Compound STATIC body: base circle + 4 blades.
+    // We rotate this whole body via Matter.Body.setAngle each frame.
+    const M = this.matter;
+    const Matter = Phaser.Physics.Matter.Matter;
+    const parts = [
+      Matter.Bodies.circle(cx, cy, this.baseR, { label:'windmill-base' }),
+    ];
+    for(let i=0;i<4;i++){
+      const angle = i * Math.PI/2;
+      // Blade extends from the center outward
+      const bx = cx + Math.cos(angle) * this.bladeLen/2;
+      const by = cy + Math.sin(angle) * this.bladeLen/2;
+      const blade = Matter.Bodies.rectangle(bx, by, this.bladeLen, this.bladeWidth);
+      Matter.Body.setAngle(blade, angle);
+      parts.push(blade);
+    }
+    this.windmillBody = Matter.Body.create({
+      parts, isStatic: true, label: 'windmill'
+    });
+    M.world.add(this.windmillBody);
+    this.windmillAngle = 0;
+
+    // Visual — will be redrawn each frame based on windmillAngle
+    this.windmillGfx = this.add.graphics().setDepth(3);
+  }
+
+  drawWindmill(){
+    const g = this.windmillGfx;
+    const cx = this.windmillCx, cy = this.windmillCy;
+    g.clear();
+    // Blade shadow
+    g.save();
+    g.translateCanvas(cx+4, cy+5);
+    g.rotateCanvas(this.windmillAngle);
+    g.fillStyle(0x000000, 0.35);
+    for(let i=0;i<4;i++){
+      g.save();
+      g.rotateCanvas(i * Math.PI/2);
+      g.fillRect(0, -this.bladeWidth/2, this.bladeLen, this.bladeWidth);
+      g.restore();
+    }
+    g.restore();
+    // Stone base
+    g.fillStyle(PAL.stone, 1); g.fillCircle(cx, cy, this.baseR);
+    g.lineStyle(2, PAL.stoneEdge, 1); g.strokeCircle(cx, cy, this.baseR);
+    // Brick radial hint
+    g.lineStyle(1, 0x60401a, 0.5);
+    for(let a=0;a<8;a++){
+      const ang = a/8 * Math.PI*2;
+      g.beginPath();
+      g.moveTo(cx + Math.cos(ang)*4, cy + Math.sin(ang)*4);
+      g.lineTo(cx + Math.cos(ang)*this.baseR, cy + Math.sin(ang)*this.baseR);
+      g.strokePath();
+    }
+    // Blades
+    g.save();
+    g.translateCanvas(cx, cy);
+    g.rotateCanvas(this.windmillAngle);
+    for(let i=0;i<4;i++){
+      g.save();
+      g.rotateCanvas(i * Math.PI/2);
+      g.fillStyle(PAL.blade, 1);
+      g.fillRect(0, -this.bladeWidth/2, this.bladeLen, this.bladeWidth);
+      g.lineStyle(1.2, PAL.bladeEdge, 1);
+      g.strokeRect(0.5, -this.bladeWidth/2+0.5, this.bladeLen-1, this.bladeWidth-1);
+      g.restore();
+    }
+    g.restore();
+    // Hub
+    g.fillStyle(PAL.hub, 1); g.fillCircle(cx, cy, 8);
+    g.fillStyle(0xd8a848, 1); g.fillCircle(cx, cy, 3);
+  }
+
+  setRpm(r){
+    this.rpm = r;
+    document.getElementById('rpm').textContent = r;
+  }
+
+  update(_time, dt){
+    // Rotate the windmill compound body
+    const dtSec = dt/1000;
+    this.windmillAngle += (this.rpm * Math.PI * 2 / 60) * dtSec;
+    Phaser.Physics.Matter.Matter.Body.setAngle(this.windmillBody, this.windmillAngle);
+    this.drawWindmill();
+
+    // Draw ball
+    this.ballGfx.clear();
+    this.ballGfx.setPosition(this.ball.x, this.ball.y);
+    this.ballGfx.fillStyle(0x000000, 0.35);
+    this.ballGfx.fillEllipse(2, 4, 18, 6);
+    this.ballGfx.fillStyle(PAL.ball, 1);
+    this.ballGfx.fillCircle(0, 0, 8);
+    this.ballGfx.lineStyle(1, 0x8a8878, 1);
+    this.ballGfx.strokeCircle(0, 0, 8);
+    this.ballGfx.fillStyle(0xffffff, 0.9);
+    this.ballGfx.fillCircle(-2.5, -2.5, 2.5);
+
+    // If a shot was fired and has stopped, check for tunneling
+    if(this.currentShotFired){
+      const v = this.ball.body.velocity;
+      const spd = Math.hypot(v.x, v.y);
+      if(spd < 0.25){
+        // shot done
+        const endSideX = this.ball.x > this.windmillCx ? 1 : -1;
+        if(endSideX !== this.currentShotStartSideX && this.currentShotHits === 0){
+          this.tunnels++;
+          document.getElementById('tunnels').textContent = this.tunnels;
+        }
+        this.currentShotFired = false;
+        this.currentShotHits = 0;
+      }
+    }
+  }
+
+  onClick(p){
+    const v = this.ball.body.velocity;
+    if(Math.hypot(v.x, v.y) > 0.25) return;
+    if(!this.aim.active){
+      const d = Phaser.Math.Distance.Between(p.worldX, p.worldY, this.ball.x, this.ball.y);
+      if(d < 32){
+        this.aim.active = true;
+        this.readout.setVisible(true);
+        this.aimDraw(p);
+      }
+      return;
+    }
+    this.aimFire(p);
+  }
+  onMove(p){ if(this.aim.active) this.aimDraw(p); }
+  aimCancel(){ this.aim.active=false; this.aim.gfx.clear(); this.readout.setVisible(false); }
+  aimDraw(p){
+    const g = this.aim.gfx; g.clear();
+    const bx=this.ball.x, by=this.ball.y;
+    const dx=p.worldX-bx, dy=p.worldY-by;
+    const raw=Math.hypot(dx,dy);
+    const dist=Math.min(raw, 240);
+    g.lineStyle(3, PAL.aimLine, 0.9);
+    g.beginPath(); g.moveTo(p.worldX, p.worldY); g.lineTo(bx, by); g.strokePath();
+    const ang = Math.atan2(by-p.worldY, bx-p.worldX);
+    g.fillStyle(PAL.aimLine, 0.9);
+    g.beginPath();
+    g.moveTo(bx, by);
+    g.lineTo(bx - Math.cos(ang-Math.PI/6)*10, by - Math.sin(ang-Math.PI/6)*10);
+    g.lineTo(bx - Math.cos(ang+Math.PI/6)*10, by - Math.sin(ang+Math.PI/6)*10);
+    g.closePath(); g.fillPath();
+    g.fillStyle(PAL.aimDot, 0.9); g.fillCircle(p.worldX, p.worldY, 4);
+    const pow = dist/240;
+    g.lineStyle(3, 0xffe030, 0.4 + pow*0.6);
+    g.strokeCircle(bx, by, 14 + pow*8);
+    this.readout.setText(`DIST ${Math.round(dist)}px · POW ${Math.round(pow*100)}%`);
+    this.readout.setPosition(p.worldX+12, p.worldY+12);
+  }
+  aimFire(p){
+    const bx=this.ball.x, by=this.ball.y;
+    const dx=p.worldX-bx, dy=p.worldY-by;
+    const raw=Math.hypot(dx,dy);
+    const dist=Math.min(raw, 240);
+    const nx=-dx/(raw||1), ny=-dy/(raw||1);
+    const vel = dist * 0.24;
+    this.matter.body.setVelocity(this.ball.body, { x:nx*vel, y:ny*vel });
+    this.aim.active=false; this.aim.gfx.clear(); this.readout.setVisible(false);
+
+    this.shots++;
+    document.getElementById('shots').textContent = this.shots;
+    this.currentShotFired = true;
+    this.currentShotHits = 0;
+    this.currentShotStartSideX = this.ball.x > this.windmillCx ? 1 : -1;
+  }
+}
+
+new Phaser.Game({
+  type: Phaser.AUTO,
+  parent: 'game',
+  scale: { mode: Phaser.Scale.RESIZE, width: window.innerWidth, height: window.innerHeight },
+  physics: { default:'matter', matter:{ gravity:{x:0,y:0}, debug:false } },
+  scene: [MicroMVP]
+});
+</script>
+</body>
+</html>
