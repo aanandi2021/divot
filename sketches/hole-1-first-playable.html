@@ -687,12 +687,25 @@ class RangeScene extends Phaser.Scene {
     });
     // ESC → Clubhouse
     this.input.keyboard.on('keydown-ESC', ()=>this.scene.start('Clubhouse'));
-    // Track when ball stops → measure distance and respawn
+    // Track when ball stops → measure distance and respawn + rolling sound + wall bounces
     this.ballStopped = true;
+    this.matter.world.on('collisionstart', (event)=>{
+      for(const p of event.pairs){
+        const a = p.bodyA, b = p.bodyB;
+        const ballBody = a.label==='ball' ? a : (b.label==='ball' ? b : null);
+        if(!ballBody) continue;
+        const otherLabel = a===ballBody ? b.label : a.label;
+        if(otherLabel==='wall'){
+          const v = ballBody.velocity;
+          sfxBounce(Math.hypot(v.x, v.y));
+        }
+      }
+    });
     this.events.on('update', ()=>{
       updateBallGfx(this, this.ball);
       const v = this.ball.body.velocity;
       const speed = Math.hypot(v.x, v.y);
+      if(speed > 0.3) setRollLevel(speed); else stopRoll();
       if(!this.ballStopped && speed < 0.15){
         this.ballStopped = true;
         this.lastDistance = Math.round(Phaser.Math.Distance.Between(this.shotStartX, this.shotStartY, this.ball.x, this.ball.y) / 22);
@@ -795,16 +808,18 @@ class Hole1Scene extends Phaser.Scene {
         const ballBody = a.label==='ball' ? a : (b.label==='ball' ? b : null);
         if(!ballBody) continue;
         const otherLabel = a===ballBody ? b.label : a.label;
-        if(otherLabel==='cup' && !this.complete){ this.completeHole(); }
+        if(otherLabel==='wall'){
+          const v = ballBody.velocity;
+          sfxBounce(Math.hypot(v.x, v.y));
+        }
+        else if(otherLabel==='cup' && !this.complete){ this.completeHole(); }
         else if(otherLabel==='water'){
           sfxSplash();
-          // reset to tee, +1 stroke
           this.matter.body.setPosition(ballBody, {x:teePos.x + 30, y:teePos.y});
           this.matter.body.setVelocity(ballBody, {x:0,y:0});
           this.shots++;
           shotChip.update(String(this.shots));
         }
-        // sand slows dramatically
         else if(otherLabel==='sand'){
           this.ball.setFrictionAir(0.15);
           this.time.delayedCall(1200, ()=>this.ball.setFrictionAir(0.025));
@@ -813,25 +828,26 @@ class Hole1Scene extends Phaser.Scene {
     });
     // ESC → Clubhouse
     this.input.keyboard.on('keydown-ESC', ()=>this.scene.start('Clubhouse'));
-    // Ball follows physics body + per-frame cup-drop check
+    // Ball follows physics body + per-frame cup-drop check + roll sound
     this.events.on('update', ()=>{
       updateBallGfx(this, this.ball);
+      // rolling sound loop
+      const vel = this.ball.body.velocity;
+      const spd = Math.hypot(vel.x, vel.y);
+      if(spd > 0.3) setRollLevel(spd); else stopRoll();
       if(this.complete) return;
       // Cup capture: if ball is close enough AND slow enough, sink it.
-      // Fast ball at high angle → lips out (minigolf realism)
       const dx = this.ball.x - this.cupPos.x, dy = this.ball.y - this.cupPos.y;
       const dist = Math.hypot(dx, dy);
-      const v = this.ball.body.velocity;
-      const speed = Math.hypot(v.x, v.y);
-      if(dist < 14 && speed < 3.2){
+      if(dist < 14 && spd < 3.2){
         this.completeHole();
-      } else if(dist < 14 && speed >= 3.2){
-        // lip-out: nudge ball out of the cup tangentially
+      } else if(dist < 14 && spd >= 3.2){
+        // lip-out: nudge ball tangentially
         const angle = Math.atan2(dy, dx);
         const tang = angle + Math.PI/2;
         this.matter.body.setVelocity(this.ball.body, {
-          x: Math.cos(tang) * speed * 0.8,
-          y: Math.sin(tang) * speed * 0.8
+          x: Math.cos(tang) * spd * 0.8,
+          y: Math.sin(tang) * spd * 0.8
         });
       }
     });
