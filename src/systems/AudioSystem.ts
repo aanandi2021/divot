@@ -170,20 +170,34 @@ export class AudioSystem {
     if (this.rollNode) return;
     const ctx = this.ensure();
     if (!ctx) return;
-    const buf = ctx.createBuffer(1, ctx.sampleRate * 1, ctx.sampleRate);
+    // Filtered pink noise for a low, dry "rolling on felt" character.
+    // Two seconds of pre-computed noise loop, biased toward low freqs.
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
     const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.5;
+    // Very rough pink-noise approximation via a leaky integrator
+    let last = 0;
+    for (let i = 0; i < data.length; i++) {
+      const white = Math.random() * 2 - 1;
+      last = 0.985 * last + white * 0.06;
+      data[i] = last * 0.45;
+    }
     this.rollNode = ctx.createBufferSource();
     this.rollNode.buffer = buf;
     this.rollNode.loop = true;
-    this.rollFilter = ctx.createBiquadFilter();
-    this.rollFilter.type = 'lowpass';
-    this.rollFilter.frequency.value = 500;
-    this.rollFilter.Q.value = 1.5;
+    // Two-stage filter: LP to remove hiss + HP to remove sub-bass rumble
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 180;
+    lp.Q.value = 0.7;
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 40;
+    this.rollFilter = lp; // we'll modulate lp.frequency with speed
     this.rollGain = ctx.createGain();
     this.rollGain.gain.value = 0;
-    this.rollNode.connect(this.rollFilter);
-    this.rollFilter.connect(this.rollGain);
+    this.rollNode.connect(hp);
+    hp.connect(lp);
+    lp.connect(this.rollGain);
     this.rollGain.connect(ctx.destination);
     this.rollNode.start();
   }
@@ -192,9 +206,11 @@ export class AudioSystem {
     if (this.muted) return;
     if (!this.rollGain) this.startRoll();
     if (!this.rollGain || !this.rollFilter || !this.ctx) return;
-    const target = Math.min(0.06, speed / 60);
-    this.rollGain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.05);
-    this.rollFilter.frequency.setTargetAtTime(400 + speed * 30, this.ctx.currentTime, 0.05);
+    // Much quieter and calmer than the sketch — a real ball on turf is subtle.
+    const target = Math.min(0.035, speed / 220);
+    this.rollGain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.06);
+    // LP cutoff modulates gently with speed — faster ball = a hint more texture
+    this.rollFilter.frequency.setTargetAtTime(140 + speed * 6, this.ctx.currentTime, 0.06);
   }
 
   stopRoll(): void {

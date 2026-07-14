@@ -140,6 +140,22 @@ export class HoleScene extends Phaser.Scene {
     this.ball.setVelocity(0, 0);
     this.audio.stopRoll();
     this.audio.cupRattle();
+    // Cup-drop animation: ball scales down + falls into hole center + fades
+    const cupX = this.cfg.cup.x;
+    const cupY = this.cfg.cup.y;
+    this.tweens.add({
+      targets: this.ball.gfx,
+      x: cupX,
+      y: cupY,
+      scale: 0.35,
+      alpha: 0.2,
+      duration: 280,
+      ease: 'Quad.easeIn',
+      onUpdate: () => {
+        // Lock physics position too so bounces don't fight the tween
+        this.ball.setVelocity(0, 0);
+      },
+    });
     const medal = computeMedal(this.shots, this.cfg.par);
     if (medal) this.time.delayedCall(500, () => this.audio.medalJingle(medal));
     let save = SaveSystem.load();
@@ -147,14 +163,22 @@ export class HoleScene extends Phaser.Scene {
     SaveSystem.save(save);
     const best = save.bestScores[this.cfg.id];
     this.hudBest.update(String(best));
-    showResult(this, {
-      holeName: this.cfg.name,
-      strokes: this.shots,
-      par: this.cfg.par,
-      medal,
-      best: best!,
-      onReplay: () => this.scene.restart({ holeId: this.cfg.id }),
-      onClubhouse: () => this.scene.start('Clubhouse'),
+    // Delay banner so the drop animation reads
+    const holeId = this.cfg.id;
+    const hasNext = HOLES.some((h) => h.id === holeId + 1);
+    this.time.delayedCall(500, () => {
+      showResult(this, {
+        holeName: this.cfg.name,
+        strokes: this.shots,
+        par: this.cfg.par,
+        medal,
+        best: best!,
+        onReplay: () => this.scene.restart({ holeId: this.cfg.id }),
+        onClubhouse: () => this.scene.start('Clubhouse'),
+        onNext: hasNext
+          ? () => this.scene.restart({ holeId: this.cfg.id + 1 })
+          : undefined,
+      });
     });
   }
 

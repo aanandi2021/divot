@@ -1,9 +1,10 @@
 /** Central hole registry — imported by ClubhouseScene and HoleScene. */
 import { HOLE_0_RANGE } from './hole-0-range';
 import { HOLE_1 } from './hole-1-straight';
+import { HOLE_2 } from './hole-2-dogleg';
 import type { HoleConfig } from '@/contracts/HoleConfig';
 
-export const HOLES: HoleConfig[] = [HOLE_0_RANGE, HOLE_1];
+export const HOLES: HoleConfig[] = [HOLE_0_RANGE, HOLE_1, HOLE_2];
 
 // Placeholder metadata for holes not yet implemented — used by CourseMap
 // to render the locked pins.
@@ -19,7 +20,7 @@ export interface PinMeta {
 export const ALL_PINS: PinMeta[] = [
   { id: 0, name: 'Driving Range', par: 0, difficulty: 1, implemented: true, frontNine: false },
   { id: 1, name: 'Straight & True', par: 2, difficulty: 1, implemented: true, frontNine: true },
-  { id: 2, name: 'The Dogleg', par: 3, difficulty: 2, implemented: false, frontNine: true },
+  { id: 2, name: 'The Dogleg', par: 3, difficulty: 2, implemented: true, frontNine: true },
   { id: 3, name: 'The Windmill', par: 3, difficulty: 2, implemented: false, frontNine: true },
   { id: 4, name: 'The Bumper Alley', par: 3, difficulty: 2, implemented: false, frontNine: true },
   { id: 5, name: 'The Waterfall', par: 3, difficulty: 3, implemented: false, frontNine: true },
