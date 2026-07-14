@@ -2,9 +2,10 @@ import type { HoleConfig } from '@/contracts/HoleConfig';
 
 /**
  * Hole 14 · The Ferry — par 3, difficulty ⭑⭑⭑⭑.
- * Water gap across the middle of the fairway. A wooden ferry platform
- * shuttles from left bank to right bank. Land on it, ride across,
- * disembark on the far shore. Cinematic.
+ *
+ * INTENT: A full-height river cuts the course in two. The ONLY way across
+ * is riding the ferry. Time it to be at the near shore, launch onto it,
+ * ride across, disembark. Overshooting or mistiming = splash.
  */
 export const HOLE_14: HoleConfig = {
   id: 14,
@@ -25,19 +26,19 @@ export const HOLE_14: HoleConfig = {
       kind: 'ferry',
       from: { x: 460, y: 360 },
       to: { x: 780, y: 360 },
-      w: 80,
-      h: 60,
+      w: 90,
+      h: 90,
       period: 5,
     },
   ],
   hazards: {
+    // Water fills the middle third of the course FULL HEIGHT — no way around
     water: [
-      // Big water gap in the middle — cross via ferry
-      { x: 400, y: 240, w: 440, h: 240 },
+      { x: 400, y: 100, w: 440, h: 520 },
     ],
     sand: [],
   },
   slopes: [],
   outdoor: true,
-  flavour: 'All aboard. Time it right.',
+  flavour: 'All aboard. Fire onto the deck; ride across.',
 };

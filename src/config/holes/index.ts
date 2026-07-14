@@ -43,7 +43,7 @@ export const ALL_PINS: PinMeta[] = [
   { id: 5, name: 'The Waterfall', par: 3, difficulty: 3, implemented: true, frontNine: true },
   { id: 6, name: 'The Sliding Gate', par: 3, difficulty: 3, implemented: true, frontNine: true },
   { id: 7, name: 'The Volcano Green', par: 3, difficulty: 3, implemented: true, frontNine: true },
-  { id: 8, name: 'The Loop-the-Loop', par: 2, difficulty: 4, implemented: true, frontNine: true },
+  { id: 8, name: 'The Loop-the-Loop', par: 3, difficulty: 4, implemented: true, frontNine: true },
   { id: 9, name: 'The Pit', par: 3, difficulty: 3, implemented: true, frontNine: true },
   { id: 10, name: 'The Tunnel Fork', par: 3, difficulty: 3, implemented: true, frontNine: false },
   { id: 11, name: 'The Pendulum', par: 3, difficulty: 4, implemented: true, frontNine: false },

@@ -96,14 +96,19 @@ export class HoleScene extends Phaser.Scene {
           new SlidingGate(this, { x: o.x, y: o.y, w: o.w, h: o.h, range: o.range, period: o.period })
         );
       } else if (o.kind === 'loop') {
-        const gap = Math.PI / 6;
+        const entryGap = Math.PI / 6;
+        const exitGap = Math.PI / 6;
+        const exitStart = o.exitAngle !== undefined ? o.exitAngle - exitGap / 2 : undefined;
+        const exitEnd = o.exitAngle !== undefined ? o.exitAngle + exitGap / 2 : undefined;
         new LoopRamp(this, {
           cx: o.center.x,
           cy: o.center.y,
           outerRadius: o.radius,
           channelWidth: 44,
-          entryStart: o.entryAngle - gap / 2,
-          entryEnd: o.entryAngle + gap / 2,
+          entryStart: o.entryAngle - entryGap / 2,
+          entryEnd: o.entryAngle + entryGap / 2,
+          exitStart,
+          exitEnd,
         });
       } else if (o.kind === 'pendulum') {
         this.pendulums.push(

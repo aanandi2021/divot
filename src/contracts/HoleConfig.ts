@@ -32,7 +32,15 @@ export type ObstacleSpec =
   | { kind: 'pendulum'; pivot: Vector; length: number; barLength: number; barWidth: number; period: number }
   | { kind: 'ferry'; from: Vector; to: Vector; w: number; h: number; period: number }
   | { kind: 'tunnel'; entry: Vector; exit: Vector; radius: number }
-  | { kind: 'loop'; center: Vector; radius: number; entryAngle: number };
+  | {
+      kind: 'loop';
+      center: Vector;
+      radius: number;
+      /** Radian angle where the ball enters (0 = east). */
+      entryAngle: number;
+      /** Radian angle where the ball exits after 360°. If omitted, entry=exit. */
+      exitAngle?: number;
+    };
 
 export interface HoleConfig {
   id: number;
