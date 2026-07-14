@@ -7,17 +7,20 @@ import { HOLE_4 } from './hole-4-bumpers';
 import { HOLE_5 } from './hole-5-waterfall';
 import { HOLE_6 } from './hole-6-gate';
 import { HOLE_7 } from './hole-7-volcano';
+import { HOLE_8 } from './hole-8-loop';
+import { HOLE_9 } from './hole-9-pit';
+import { HOLE_10 } from './hole-10-tunnel';
+import { HOLE_11 } from './hole-11-pendulum';
+import { HOLE_12 } from './hole-12-ridgeline';
+import { HOLE_13 } from './hole-13-corkscrew';
+import { HOLE_14 } from './hole-14-ferry';
+import { HOLE_15 } from './hole-15-championship';
 import type { HoleConfig } from '@/contracts/HoleConfig';
 
 export const HOLES: HoleConfig[] = [
   HOLE_0_RANGE,
-  HOLE_1,
-  HOLE_2,
-  HOLE_3,
-  HOLE_4,
-  HOLE_5,
-  HOLE_6,
-  HOLE_7,
+  HOLE_1, HOLE_2, HOLE_3, HOLE_4, HOLE_5, HOLE_6, HOLE_7, HOLE_8, HOLE_9,
+  HOLE_10, HOLE_11, HOLE_12, HOLE_13, HOLE_14, HOLE_15,
 ];
 
 // Placeholder metadata for holes not yet implemented — used by CourseMap
@@ -40,12 +43,12 @@ export const ALL_PINS: PinMeta[] = [
   { id: 5, name: 'The Waterfall', par: 3, difficulty: 3, implemented: true, frontNine: true },
   { id: 6, name: 'The Sliding Gate', par: 3, difficulty: 3, implemented: true, frontNine: true },
   { id: 7, name: 'The Volcano Green', par: 3, difficulty: 3, implemented: true, frontNine: true },
-  { id: 8, name: 'The Loop-the-Loop', par: 2, difficulty: 4, implemented: false, frontNine: true },
-  { id: 9, name: 'The Pit', par: 3, difficulty: 3, implemented: false, frontNine: true },
-  { id: 10, name: 'The Tunnel Fork', par: 3, difficulty: 3, implemented: false, frontNine: false },
-  { id: 11, name: 'The Pendulum', par: 3, difficulty: 4, implemented: false, frontNine: false },
-  { id: 12, name: 'The Ridgeline', par: 3, difficulty: 4, implemented: false, frontNine: false },
-  { id: 13, name: 'The Corkscrew', par: 3, difficulty: 4, implemented: false, frontNine: false },
-  { id: 14, name: 'The Ferry', par: 3, difficulty: 4, implemented: false, frontNine: false },
-  { id: 15, name: 'The Championship', par: 4, difficulty: 5, implemented: false, frontNine: false },
+  { id: 8, name: 'The Loop-the-Loop', par: 2, difficulty: 4, implemented: true, frontNine: true },
+  { id: 9, name: 'The Pit', par: 3, difficulty: 3, implemented: true, frontNine: true },
+  { id: 10, name: 'The Tunnel Fork', par: 3, difficulty: 3, implemented: true, frontNine: false },
+  { id: 11, name: 'The Pendulum', par: 3, difficulty: 4, implemented: true, frontNine: false },
+  { id: 12, name: 'The Ridgeline', par: 3, difficulty: 4, implemented: true, frontNine: false },
+  { id: 13, name: 'The Corkscrew', par: 3, difficulty: 4, implemented: true, frontNine: false },
+  { id: 14, name: 'The Ferry', par: 3, difficulty: 4, implemented: true, frontNine: false },
+  { id: 15, name: 'The Championship', par: 4, difficulty: 5, implemented: true, frontNine: false },
 ];

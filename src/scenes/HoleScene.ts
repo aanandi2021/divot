@@ -15,6 +15,10 @@ import { Slope } from '@/entities/Slope';
 import { WaterHazard } from '@/entities/WaterHazard';
 import { SlidingGate } from '@/entities/SlidingGate';
 import { SandTrap } from '@/entities/SandTrap';
+import { LoopRamp } from '@/entities/LoopRamp';
+import { Tunnel } from '@/entities/Tunnel';
+import { Pendulum } from '@/entities/Pendulum';
+import { Ferry } from '@/entities/Ferry';
 import { drawCup, CUP_CAPTURE_RADIUS, CUP_MAX_CAPTURE_SPEED } from '@/entities/Cup';
 import { drawTeeMat } from '@/entities/TeeMat';
 import { AimSystem } from '@/systems/AimSystem';
@@ -36,6 +40,8 @@ export class HoleScene extends Phaser.Scene {
   private hudBest!: HudChip;
   private windmills: Windmill[] = [];
   private gates: SlidingGate[] = [];
+  private pendulums: Pendulum[] = [];
+  private ferries: Ferry[] = [];
 
   constructor() {
     super('Hole');
@@ -70,6 +76,8 @@ export class HoleScene extends Phaser.Scene {
     // Draw obstacles (windmills etc.)
     this.windmills = [];
     this.gates = [];
+    this.pendulums = [];
+    this.ferries = [];
     for (const o of this.cfg.obstacles) {
       if (o.kind === 'windmill') {
         this.windmills.push(
@@ -86,6 +94,31 @@ export class HoleScene extends Phaser.Scene {
       } else if (o.kind === 'sliding-gate') {
         this.gates.push(
           new SlidingGate(this, { x: o.x, y: o.y, w: o.w, h: o.h, range: o.range, period: o.period })
+        );
+      } else if (o.kind === 'loop') {
+        const gap = Math.PI / 6;
+        new LoopRamp(this, {
+          cx: o.center.x,
+          cy: o.center.y,
+          outerRadius: o.radius,
+          channelWidth: 44,
+          entryStart: o.entryAngle - gap / 2,
+          entryEnd: o.entryAngle + gap / 2,
+        });
+      } else if (o.kind === 'pendulum') {
+        this.pendulums.push(
+          new Pendulum(this, {
+            pivot: o.pivot,
+            length: o.length,
+            barLength: o.barLength,
+            barWidth: o.barWidth,
+            period: o.period,
+            amplitude: 0.8,
+          })
+        );
+      } else if (o.kind === 'ferry') {
+        this.ferries.push(
+          new Ferry(this, { from: o.from, to: o.to, w: o.w, h: o.h, period: o.period })
         );
       }
     }
@@ -116,6 +149,13 @@ export class HoleScene extends Phaser.Scene {
       new SandTrap(this, this.ball, s.x, s.y, s.w, s.h);
     }
 
+    // Tunnels — need the ball reference for teleport check
+    for (const o of this.cfg.obstacles) {
+      if (o.kind === 'tunnel') {
+        new Tunnel(this, this.ball, { entry: o.entry, exit: o.exit, radius: o.radius });
+      }
+    }
+
     // Aim
     this.aim = new AimSystem(this, this.ball);
     this.aim.onFire(() => {
@@ -142,7 +182,17 @@ export class HoleScene extends Phaser.Scene {
         const ballBody = a.label === 'ball' ? a : b.label === 'ball' ? b : null;
         if (!ballBody) continue;
         const other = a === ballBody ? b.label : a.label;
-        if (other === 'wall' || other === 'windmill' || other === 'windmill-base' || other === 'bumper' || other === 'gate') {
+        if (
+          other === 'wall' ||
+          other === 'windmill' ||
+          other === 'windmill-base' ||
+          other === 'bumper' ||
+          other === 'gate' ||
+          other === 'loop-outer' ||
+          other === 'loop-inner' ||
+          other === 'pendulum' ||
+          other === 'ferry'
+        ) {
           this.audio.bounce(Math.hypot(ballBody.velocity.x, ballBody.velocity.y));
         } else if (other === 'water' && !this.complete) {
           this.handleWater();
@@ -161,6 +211,8 @@ export class HoleScene extends Phaser.Scene {
     // Advance moving obstacles
     for (const w of this.windmills) w.update(dt);
     for (const g of this.gates) g.update(dt);
+    for (const p of this.pendulums) p.update(dt);
+    for (const f of this.ferries) f.update(dt);
     this.ball.syncGraphics();
     const spd = this.ball.speed;
     if (spd > 0.3) this.audio.updateRoll(spd);

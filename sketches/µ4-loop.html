@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>µ4 · Loop-the-Loop micro-MVP</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;height:100%;background:#2a2418;overflow:hidden;font-family:sans-serif}
+  #game{width:100%;height:100%}
+  .stamp{position:fixed;top:8px;left:8px;background:rgba(0,0,0,.55);color:#f0d670;font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 10px;border-radius:4px;letter-spacing:1px;z-index:100;pointer-events:none}
+  .criteria{position:fixed;top:8px;right:8px;background:rgba(0,0,0,.7);color:#f0d670;font-family:'IBM Plex Mono',monospace;font-size:11px;padding:10px 14px;border-radius:6px;z-index:100;max-width:360px;line-height:1.5}
+  .criteria b{color:#f8e848}
+</style>
+</head>
+<body>
+<!--
+  µ4 · Loop-the-Loop micro-MVP · Divot · 2026-07-14
+  ⚠ HIGHEST-RISK validation per Constitution IX
+  ================================================================
+  RISK VALIDATED:
+  In a top-down 2D game without gravity, can we build a circular loop
+  from segmented wall bodies that keeps a fast-moving ball on track
+  through the full 360° curve without escaping?
+
+  APPROACH:
+  Two concentric rings of thin rectangular wall segments (outer + inner)
+  forming a "channel" the ball is constrained inside. Gap at entry.
+
+  PASS CRITERIA:
+  1. Ball entering at moderate-plus speed completes at least one full loop.
+  2. Ball entering slow gracefully rolls back (doesn't get stuck).
+  3. No tunneling through segments at max speed.
+  4. Exit angle is predictable given entry angle+power.
+
+  IF FAILS: replace Hole 8 mechanic with a spiral corridor or a "kicker
+  ramp" that gives the ball a scripted impulse. Update plan.md T113-T114.
+-->
+<div class="stamp">µ4 · SKETCH · disposable · highest-risk validation</div>
+<div class="criteria">
+  <b>µ4 · Loop-the-Loop test</b><br>
+  Fire the ball into the loop channel from the left.<br>
+  Segmented ring: 24 wall segments, outer & inner rings, entry gap on left.<br><br>
+  <b>Try:</b><br>
+  · Moderate speed → should complete at least 1 loop<br>
+  · Slow → should roll back through the gap<br>
+  · Max speed → should NOT tunnel through segments<br><br>
+  <b>Controls:</b> [ / ] = ± segments (currently <span id="segs">24</span>)<br>
+  <b>Shots:</b> <span id="shots">0</span> · <b>Loops completed:</b> <span id="loops">0</span><br><br>
+  <span style="color:#a89880">Pass: ≥1 full loop at moderate power, no tunneling at max.</span>
+</div>
+<div id="game"></div>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+<script>
+class LoopTest extends Phaser.Scene {
+  constructor(){ super('µ4'); }
+  create(){
+    const {width:W, height:H} = this.scale;
+    this.segments = 24;
+    this.shots = 0;
+    this.loops = 0;
+
+    this.add.rectangle(0,0,W,H,0xb8b0a4).setOrigin(0);
+
+    // Fairway
+    const F = { x:(W-1000)/2, y:(H-500)/2, w:1000, h:500 };
+    const gr = this.add.graphics();
+    gr.fillStyle(0x5a8a3a, 1); gr.fillRect(F.x, F.y, F.w, F.h);
+
+    // Walls (perimeter)
+    const T = 16;
+    this.buildWall(F.x-T, F.y-T, F.w+2*T, T);
+    this.buildWall(F.x-T, F.y+F.h, F.w+2*T, T);
+    this.buildWall(F.x-T, F.y, T, F.h);
+    this.buildWall(F.x+F.w, F.y, T, F.h);
+
+    // Loop parameters
+    this.loopCx = F.x + F.w * 0.65;
+    this.loopCy = F.y + F.h * 0.5;
+    this.loopOuterR = 130;
+    this.loopChannel = 44; // channel width
+    this.loopInnerR = this.loopOuterR - this.loopChannel;
+    this.entryAngleStart = Math.PI * 0.85;  // roughly "west-south"
+    this.entryAngleEnd = Math.PI * 1.15;
+
+    this.buildLoop();
+
+    // Ball
+    const teeX = F.x + 80, teeY = this.loopCy - this.loopChannel / 2;
+    this.ball = this.matter.add.image(teeX, teeY, '__DEFAULT');
+    this.ball.setVisible(false);
+    this.ball.setCircle(8);
+    this.ball.setFriction(0.02);
+    this.ball.setFrictionAir(0.020);
+    this.ball.setBounce(0.55);
+    this.ball.body.label = 'ball';
+    this.teeX = teeX; this.teeY = teeY;
+    this.ballGfx = this.add.graphics().setDepth(5);
+
+    // Aim
+    this.aim = {active:false, gfx:this.add.graphics().setDepth(20)};
+    this.readout = this.add.text(0,0,'',{
+      fontFamily:'IBM Plex Mono', fontSize:'12px', color:'#f0d670',
+      backgroundColor:'#000000aa', padding:{x:6,y:3}
+    }).setDepth(21).setVisible(false);
+    this.input.on('pointerdown',(p)=>this.onClick(p));
+    this.input.on('pointermove',(p)=>this.onMove(p));
+    this.input.keyboard.on('keydown-ESC', ()=>this.aimCancel());
+
+    // Loop tracking
+    this.currentShotStartAngle = null;
+    this.currentShotAngleAccum = 0;
+    this.currentShotPrevAngle = null;
+    this.currentShotFired = false;
+
+    this.add.text(W/2, F.y - 22, 'fire the ball into the channel · watch it whip around', {
+      fontFamily:'IBM Plex Mono', fontSize:'11px', color:'#5a4020'
+    }).setOrigin(0.5, 1);
+  }
+
+  buildWall(x,y,w,h){
+    const g = this.add.graphics().setDepth(1);
+    g.fillStyle(0x000000, 0.3); g.fillRect(x+3, y+4, w, h);
+    g.fillStyle(0x8a5a28, 1); g.fillRect(x, y, w, h);
+    g.lineStyle(1.5, 0x3a1808, 1); g.strokeRect(x+0.75, y+0.75, w-1.5, h-1.5);
+    this.matter.add.rectangle(x+w/2, y+h/2, w, h, {
+      isStatic:true, friction:0.05, restitution:0.7, label:'wall'
+    });
+  }
+
+  buildLoop(){
+    // Render the channel background — dark stone
+    const bgGfx = this.add.graphics().setDepth(0.5);
+    bgGfx.fillStyle(0x484438, 0.5);
+    bgGfx.fillCircle(this.loopCx, this.loopCy, this.loopOuterR);
+    bgGfx.fillStyle(0x5a8a3a, 1);
+    bgGfx.fillCircle(this.loopCx, this.loopCy, this.loopInnerR);
+
+    // Approximate outer + inner rings with N segments each, skipping the entry gap
+    for (let i = 0; i < this.segments; i++) {
+      const a1 = (i / this.segments) * Math.PI * 2;
+      const a2 = ((i + 1) / this.segments) * Math.PI * 2;
+      // Skip segments within the entry gap
+      if (a1 >= this.entryAngleStart && a2 <= this.entryAngleEnd) continue;
+      // Outer ring segment: chord at radius loopOuterR
+      this.buildRingSegment(a1, a2, this.loopOuterR, 8, 'outer');
+      // Inner ring segment: chord at radius loopInnerR
+      this.buildRingSegment(a1, a2, this.loopInnerR, 8, 'inner');
+    }
+  }
+
+  buildRingSegment(a1, a2, radius, thickness, kind){
+    const cx = this.loopCx, cy = this.loopCy;
+    const midA = (a1 + a2) / 2;
+    // Center point of the segment (on the ring)
+    const px = cx + Math.cos(midA) * radius;
+    const py = cy + Math.sin(midA) * radius;
+    // Chord length
+    const chord = 2 * radius * Math.sin((a2 - a1) / 2);
+    // Angle of the chord = perpendicular to radial
+    const bodyAngle = midA + Math.PI / 2;
+    const body = this.matter.add.rectangle(px, py, chord, thickness, {
+      isStatic:true, friction:0.05, restitution:0.7, label:'loop-'+kind, angle: bodyAngle
+    });
+    // Visual
+    const g = this.add.graphics().setDepth(2);
+    g.fillStyle(0x6a6a6a, 1);
+    g.save();
+    g.translateCanvas(px, py);
+    g.rotateCanvas(bodyAngle);
+    g.fillRect(-chord/2, -thickness/2, chord, thickness);
+    g.lineStyle(1, 0x2a2a2a, 1);
+    g.strokeRect(-chord/2 + 0.5, -thickness/2 + 0.5, chord - 1, thickness - 1);
+    g.restore();
+    void body;
+  }
+
+  update(){
+    // Ball graphics
+    this.ballGfx.clear();
+    this.ballGfx.setPosition(this.ball.x, this.ball.y);
+    this.ballGfx.fillStyle(0,0.35); this.ballGfx.fillEllipse(2,4,18,6);
+    this.ballGfx.fillStyle(0xffffff, 1); this.ballGfx.fillCircle(0,0,8);
+    this.ballGfx.lineStyle(1, 0x8a8878, 1); this.ballGfx.strokeCircle(0,0,8);
+
+    // Loop tracking
+    if(this.currentShotFired){
+      const v = this.ball.body.velocity;
+      const spd = Math.hypot(v.x, v.y);
+      const dx = this.ball.x - this.loopCx;
+      const dy = this.ball.y - this.loopCy;
+      const dist = Math.hypot(dx, dy);
+      // Ball is inside the channel
+      if(dist > this.loopInnerR && dist < this.loopOuterR + 15){
+        const angle = Math.atan2(dy, dx);
+        if(this.currentShotPrevAngle !== null){
+          let delta = angle - this.currentShotPrevAngle;
+          if(delta > Math.PI) delta -= 2*Math.PI;
+          if(delta < -Math.PI) delta += 2*Math.PI;
+          this.currentShotAngleAccum += Math.abs(delta);
+          if(this.currentShotAngleAccum >= Math.PI * 2){
+            this.loops++;
+            document.getElementById('loops').textContent = this.loops;
+            this.currentShotAngleAccum = 0;
+          }
+        }
+        this.currentShotPrevAngle = angle;
+      } else {
+        this.currentShotPrevAngle = null;
+      }
+      if(spd < 0.25){
+        this.currentShotFired = false;
+        this.currentShotPrevAngle = null;
+        this.currentShotAngleAccum = 0;
+      }
+    }
+  }
+
+  onClick(p){
+    const v = this.ball.body.velocity;
+    if(Math.hypot(v.x,v.y) > 0.25) return;
+    if(!this.aim.active){
+      const d = Phaser.Math.Distance.Between(p.worldX, p.worldY, this.ball.x, this.ball.y);
+      if(d < 32){ this.aim.active = true; this.readout.setVisible(true); this.aimDraw(p); }
+      return;
+    }
+    this.aimFire(p);
+  }
+  onMove(p){ if(this.aim.active) this.aimDraw(p); }
+  aimCancel(){ this.aim.active = false; this.aim.gfx.clear(); this.readout.setVisible(false); }
+  aimDraw(p){
+    const g = this.aim.gfx; g.clear();
+    const bx = this.ball.x, by = this.ball.y;
+    const dx = p.worldX - bx, dy = p.worldY - by;
+    const raw = Math.hypot(dx, dy);
+    const dist = Math.min(raw, 240);
+    g.lineStyle(3, 0xffe030, 0.9);
+    g.beginPath(); g.moveTo(p.worldX, p.worldY); g.lineTo(bx, by); g.strokePath();
+    g.fillStyle(0xffe030, 0.9); g.fillCircle(p.worldX, p.worldY, 4);
+    this.readout.setText(`DIST ${Math.round(dist)}px · POW ${Math.round((dist/240)*100)}%`);
+    this.readout.setPosition(p.worldX+12, p.worldY+12);
+  }
+  aimFire(p){
+    const bx = this.ball.x, by = this.ball.y;
+    const dx = p.worldX - bx, dy = p.worldY - by;
+    const raw = Math.hypot(dx, dy);
+    const dist = Math.min(raw, 240);
+    const nx = -dx/(raw||1), ny = -dy/(raw||1);
+    const vel = dist * 0.24;
+    this.matter.body.setVelocity(this.ball.body, { x: nx*vel, y: ny*vel });
+    this.aim.active = false; this.aim.gfx.clear(); this.readout.setVisible(false);
+    this.shots++;
+    document.getElementById('shots').textContent = this.shots;
+    this.currentShotFired = true;
+    this.currentShotPrevAngle = null;
+    this.currentShotAngleAccum = 0;
+  }
+}
+
+new Phaser.Game({
+  type: Phaser.AUTO, parent: 'game',
+  scale:{ mode: Phaser.Scale.RESIZE, width: innerWidth, height: innerHeight },
+  physics:{ default:'matter', matter:{ gravity:{x:0,y:0}, debug: false } },
+  scene: [LoopTest]
+});
+</script>
+</body>
+</html>
