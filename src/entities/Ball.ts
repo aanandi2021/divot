@@ -35,28 +35,26 @@ export class Ball {
   private render(): void {
     const g = this.gfx;
     g.clear();
-    // shadow — slightly offset behind direction of travel
+    // Shadow
     g.fillStyle(0x000000, 0.35);
     g.fillEllipse(2, 4, 18, 6);
-    // body
+    // Body
     g.fillStyle(PAL.ball, 1);
     g.fillCircle(0, 0, BALL_RADIUS);
     g.lineStyle(1, 0x8a8878, 1);
     g.strokeCircle(0, 0, BALL_RADIUS);
-    // rotating stripe — colored band that spins with motion
-    g.fillStyle(0xc04030, 0.85);
-    // A thin ellipse whose long axis rotates
-    const stripe = 5;
+    // Asymmetric rotating pattern — red stripe + a distinct off-center dot.
+    // The dot makes rotation legible even at glance because it's non-symmetric.
     g.save();
     g.rotateCanvas(this.angle);
+    // Full-diameter red stripe (thin)
     g.fillStyle(0xc04030, 0.9);
-    g.fillEllipse(0, 0, BALL_RADIUS * 1.8, stripe * 0.6);
-    // Two small red dots at stripe ends for extra motion legibility
-    g.fillStyle(0x8a2010, 0.9);
-    g.fillCircle(BALL_RADIUS * 0.75, 0, 1.4);
-    g.fillCircle(-BALL_RADIUS * 0.75, 0, 1.4);
+    g.fillEllipse(0, 0, BALL_RADIUS * 1.85, 2.4);
+    // Off-center marker dot — this is the "rolling" indicator
+    g.fillStyle(0x1a1810, 1);
+    g.fillCircle(BALL_RADIUS * 0.55, 0, 1.8);
     g.restore();
-    // Highlight — always upper-left in world space (so it doesn't rotate)
+    // Fixed highlight (world-space, not rotating)
     g.fillStyle(0xffffff, 0.9);
     g.fillCircle(-2.5, -2.5, 2.5);
   }
@@ -96,16 +94,20 @@ export class Ball {
   }
 
   syncGraphics(): void {
-    // Rotate the stripe based on distance travelled this frame.
-    // A rolling ball rotates once per (2π × radius) of travel; we can approximate
-    // by using angular = velocity magnitude / radius, scaled slightly for visual pop.
-    const angular = this.speed / BALL_RADIUS;
-    // Direction of the rotation follows the motion vector
-    if (this.speed > 0.05) {
-      this.angle += angular * 0.017 * Math.sign(this.vx || 1);
-      // Actually, more correctly: rotate perpendicular to motion vector.
-      // For a topdown view, the stripe should visually spin around the axis
-      // of motion. We approximate by rotating the stripe angle continuously.
+    // Real rolling: pattern rotation rate is ω = v/r. For a top-down 2D game
+    // the rotation axis is perpendicular to the motion vector, but visually
+    // we approximate by rotating the pattern around the ball center in the
+    // direction of motion (right-hand rule with motion vector).
+    const speed = this.speed;
+    if (speed > 0.05) {
+      // ω = v/r · sign of motion. Coefficient tuned so wheel visibly rolls.
+      // Direction: cross product of motion with the screen normal (into page)
+      // — for a ball moving right, positive angular velocity in screen space.
+      const dt = (this.scene.game.loop.rawDelta || 16) / 1000;
+      const omega = speed / BALL_RADIUS; // radians/sec (per unit)
+      // Sign follows motion direction — rolling forward should look forward
+      const sign = this.vx !== 0 ? Math.sign(this.vx) : Math.sign(this.vy);
+      this.angle += omega * dt * sign;
     }
     this.gfx.setPosition(this.x, this.y);
     this.render();

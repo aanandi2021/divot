@@ -29,14 +29,16 @@ export class ClubhouseScene extends Phaser.Scene {
         color: '#f0d670',
         fontStyle: '700',
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setResolution(2);
     this.add
       .text(W / 2, 92, 'the clubhouse', {
         fontFamily: 'IBM Plex Mono, monospace',
         fontSize: '13px',
         color: '#a89880',
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setResolution(2);
 
     // Save summary
     const save = SaveSystem.load();

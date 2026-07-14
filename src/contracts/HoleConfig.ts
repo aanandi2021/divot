@@ -13,6 +13,12 @@ export interface RectSpec {
 
 export interface WallSpec extends RectSpec {
   angle?: number;
+  /**
+   * Visual style. 'boundary' = wooden plank border (default).
+   * 'block' = interior obstacle rendered as concrete/stone that reads
+   * as *out-of-bounds terrain* instead of a giant wooden pillar.
+   */
+  kind?: 'boundary' | 'block';
 }
 
 export interface SlopeSpec extends RectSpec {

@@ -10,6 +10,7 @@ import { PAL } from '@/util/palette';
 import { Ball, BALL_FRICTION_AIR } from '@/entities/Ball';
 import { Wall } from '@/entities/Wall';
 import { Windmill } from '@/entities/Windmill';
+import { Bumper } from '@/entities/Bumper';
 import { drawCup, CUP_CAPTURE_RADIUS, CUP_MAX_CAPTURE_SPEED } from '@/entities/Cup';
 import { drawTeeMat } from '@/entities/TeeMat';
 import { AimSystem } from '@/systems/AimSystem';
@@ -58,8 +59,8 @@ export class HoleScene extends Phaser.Scene {
     const outer = this.getOuterBounds();
     this.drawFairway(outer.x, outer.y, outer.w, outer.h);
 
-    // Draw walls
-    this.cfg.walls.forEach((w) => new Wall(this, w.x, w.y, w.w, w.h));
+    // Draw walls (boundary vs block affects rendering)
+    this.cfg.walls.forEach((w) => new Wall(this, w.x, w.y, w.w, w.h, w.kind ?? 'boundary'));
 
     // Draw obstacles (windmills etc.)
     this.windmills = [];
@@ -74,8 +75,10 @@ export class HoleScene extends Phaser.Scene {
             rpm: o.rpm,
           })
         );
+      } else if (o.kind === 'bumper') {
+        new Bumper(this, o.x, o.y, o.radius);
       }
-      // Other obstacle kinds: TBD (bumper, sliding-gate, pendulum, ferry, tunnel, loop)
+      // Other obstacle kinds: TBD (sliding-gate, pendulum, ferry, tunnel, loop)
     }
 
     // Tee mat
@@ -115,7 +118,7 @@ export class HoleScene extends Phaser.Scene {
         const ballBody = a.label === 'ball' ? a : b.label === 'ball' ? b : null;
         if (!ballBody) continue;
         const other = a === ballBody ? b.label : a.label;
-        if (other === 'wall' || other === 'windmill' || other === 'windmill-base') {
+        if (other === 'wall' || other === 'windmill' || other === 'windmill-base' || other === 'bumper') {
           this.audio.bounce(Math.hypot(ballBody.velocity.x, ballBody.velocity.y));
         }
       }

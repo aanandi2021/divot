@@ -25,8 +25,8 @@ export const HOLE_2: HoleConfig = {
     { x: 84, y: 100, w: 16, h: 520 },        // left
     { x: 1100, y: 100, w: 16, h: 520 },      // right
     // Interior block — the corner that creates the dogleg.
-    // Big rectangle in the upper-left; ball must go right then up (or bank off the block).
-    { x: 100, y: 100, w: 660, h: 320 },
+    // Rendered as out-of-bounds concrete so the playable area reads as an L-shape.
+    { x: 100, y: 100, w: 660, h: 320, kind: 'block' },
   ],
   obstacles: [],
   hazards: { water: [], sand: [] },
