@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Divot — Sketch 01 · First Playable</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;height:100%;background:#2a2418;overflow:hidden;font-family:'Fredoka',sans-serif}
+  #game{width:100%;height:100%}
+  .stamp{position:fixed;top:8px;left:8px;background:rgba(0,0,0,.55);color:#f0d670;font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 10px;border-radius:4px;letter-spacing:1px;z-index:100;pointer-events:none}
+</style>
+</head>
+<body>
+<!--
+  SKETCH 01 · Divot · 2026-07-13
+  Purpose: first playable — prove aim mechanic, physics feel, and Clubhouse→Hole loop.
+  Scope: Clubhouse + Range (Hole 0) + Hole 1 (Straight & True). Grey-box art only.
+  Stack: Phaser 3 (CDN) + Matter.js (bundled). Vanilla JS. Single file. Disposable per Constitution VIII.
+-->
+<div class="stamp">SKETCH 01 · disposable prototype · not v1</div>
+<div id="game"></div>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+<script>
+/* ============================================================
+   PALETTE — matches Photo-Drone Realism grey-box level
+   ============================================================ */
+const PAL = {
+  grass:      0x5a8a3a,
+  grassDark:  0x3f6a2a,
+  wood:       0x8a5a28,
+  woodEdge:   0x3a1808,
+  woodHi:     0xa87038,
+  water:      0x3a78a0,
+  waterDark:  0x1a4868,
+  sand:       0xf4e0a0,
+  sandEdge:   0x8a6820,
+  cup:        0x000000,
+  flagPole:   0xc8b088,
+  flag:       0xc8382a,
+  ball:       0xffffff,
+  ballDim:    0xbbb0a0,
+  tee:        0x2a2a2a,
+  teeMark:    0xe8c848,
+  concrete:   0xb8b0a4,
+  aimDot:     0xffe030,
+  aimLine:    0xffe030,
+  hudBg:      0x1a1510,
+  hudText:    0xf0d670,
+  medal_bronze:0xc87a3a,
+  medal_silver:0xd0d0d0,
+  medal_gold: 0xf0c840,
+};
+
+/* ============================================================
+   SAVE / LOAD (localStorage per Constitution VI)
+   ============================================================ */
+const SAVE_KEY = 'divot.sketch.save';
+function loadSave(){
+  try{ return JSON.parse(localStorage.getItem(SAVE_KEY)) || {medals:{},bestScores:{}}; }
+  catch(e){ return {medals:{},bestScores:{}}; }
+}
+function writeSave(save){ localStorage.setItem(SAVE_KEY, JSON.stringify(save)); }
+function recordScore(holeId, strokes, par){
+  const s = loadSave();
+  const prevBest = s.bestScores[holeId] ?? Infinity;
+  if(strokes < prevBest){ s.bestScores[holeId] = strokes; }
+  const diff = strokes - par;
+  let medal = null;
+  if(diff <= -2) medal = 'gold';
+  else if(diff === -1) medal = 'silver';
+  else if(diff === 0) medal = 'bronze';
+  if(medal){
+    const rank = {bronze:1,silver:2,gold:3};
+    if(!s.medals[holeId] || rank[medal] > rank[s.medals[holeId]]){
+      s.medals[holeId] = medal;
+    }
+  }
+  writeSave(s);
+  return {medal, strokes, par, diff, best: s.bestScores[holeId]};
+}
+
+/* ============================================================
+   AIM SYSTEM — shared between Range and Hole scenes
+   Two-click cursor-vector: click ball → cursor becomes club →
+   move to show vector arrow → second click fires.
+   ============================================================ */
+class AimSystem {
+  constructor(scene, ball, opts={}){
+    this.scene = scene;
+    this.ball = ball;
+    this.active = false;
+    this.maxPower = opts.maxPower ?? 240;    // pixels of drag = max power
+    this.forceScale = opts.forceScale ?? 0.06; // Matter force per pixel
+    this.onFire = opts.onFire || (()=>{});
+    this.gfx = scene.add.graphics();
+    this.gfx.setDepth(20);
+    // HUD text
+    this.readout = scene.add.text(0,0,'', {
+      fontFamily:'IBM Plex Mono', fontSize:'13px', color:'#f0d670',
+      backgroundColor:'#000000aa', padding:{x:6,y:3}
+    }).setDepth(21).setVisible(false);
+    // click handler on scene
+    scene.input.on('pointerdown', (p)=>this._onClick(p));
+    scene.input.on('pointermove', (p)=>this._onMove(p));
+    // esc to cancel
+    scene.input.keyboard.on('keydown-ESC', ()=>this._cancel());
+  }
+  _isBallStill(){
+    const v = this.ball.body.velocity;
+    return Math.hypot(v.x, v.y) < 0.25;
+  }
+  _distToBall(p){
+    return Phaser.Math.Distance.Between(p.x, p.y, this.ball.x, this.ball.y);
+  }
+  _onClick(p){
+    if(!this._isBallStill()) return;
+    if(!this.active){
+      // Click 1: was it on the ball?
+      const d = this._distToBall(p);
+      if(d < 32){
+        this.active = true;
+        this.readout.setVisible(true);
+        this._draw(p);
+      }
+      return;
+    }
+    // Click 2: fire
+    this._fire(p);
+  }
+  _onMove(p){
+    if(!this.active) return;
+    this._draw(p);
+  }
+  _cancel(){
+    this.active = false;
+    this.gfx.clear();
+    this.readout.setVisible(false);
+  }
+  _draw(p){
+    this.gfx.clear();
+    const bx = this.ball.x, by = this.ball.y;
+    const dx = p.x - bx, dy = p.y - by;
+    const dist = Math.min(Math.hypot(dx,dy), this.maxPower);
+    const power = dist / this.maxPower;
+    // Direction ball will travel = opposite of cursor
+    const shotAngle = Math.atan2(-dy, -dx);
+    // Draw arrow from cursor to ball (pull-back visual)
+    this.gfx.lineStyle(3, PAL.aimLine, 0.9);
+    this.gfx.beginPath();
+    this.gfx.moveTo(p.x, p.y);
+    this.gfx.lineTo(bx, by);
+    this.gfx.strokePath();
+    // arrowhead on ball end
+    const headLen = 10;
+    const ang = Math.atan2(by - p.y, bx - p.x);
+    this.gfx.fillStyle(PAL.aimLine, 0.9);
+    this.gfx.beginPath();
+    this.gfx.moveTo(bx, by);
+    this.gfx.lineTo(bx - Math.cos(ang - Math.PI/6)*headLen, by - Math.sin(ang - Math.PI/6)*headLen);
+    this.gfx.lineTo(bx - Math.cos(ang + Math.PI/6)*headLen, by - Math.sin(ang + Math.PI/6)*headLen);
+    this.gfx.closePath();
+    this.gfx.fillPath();
+    // dot at cursor
+    this.gfx.fillStyle(PAL.aimDot, 0.9);
+    this.gfx.fillCircle(p.x, p.y, 4);
+    // power meter arc around ball (visual power indicator)
+    this.gfx.lineStyle(3, 0xffe030, 0.4 + power*0.6);
+    this.gfx.strokeCircle(bx, by, 14 + power*8);
+    // readout
+    this.readout.setText(`DIST ${Math.round(dist)}px · POWER ${Math.round(power*100)}%`);
+    this.readout.setPosition(p.x + 12, p.y + 12);
+  }
+  _fire(p){
+    const bx = this.ball.x, by = this.ball.y;
+    const dx = p.x - bx, dy = p.y - by;
+    const dist = Math.min(Math.hypot(dx,dy), this.maxPower);
+    // Direction ball moves = away from cursor (opposite of drag)
+    const nx = -dx / (Math.hypot(dx,dy) || 1);
+    const ny = -dy / (Math.hypot(dx,dy) || 1);
+    const force = dist * this.forceScale;
+    // Apply as impulse via velocity (cleaner than Matter.applyForce for this scale)
+    this.scene.matter.body.setVelocity(this.ball.body, {x: nx*force*4, y: ny*force*4});
+    this.active = false;
+    this.gfx.clear();
+    this.readout.setVisible(false);
+    this.onFire();
+  }
+}
+
+/* ============================================================
+   COMMON RENDERING — wooden walls, tee mat, cup with flag
+   ============================================================ */
+function drawWoodenWall(gfx, x, y, w, h){
+  // shadow into playfield
+  gfx.fillStyle(0x000000, 0.35);
+  gfx.fillRect(x+3, y+4, w, h);
+  // wood body
+  gfx.fillStyle(PAL.wood, 1);
+  gfx.fillRect(x, y, w, h);
+  // top highlight edge
+  gfx.fillStyle(PAL.woodHi, 1);
+  gfx.fillRect(x, y, w, 2);
+  if(w < h) gfx.fillRect(x, y, 2, h);
+  // plank divisions every ~80px along long axis
+  gfx.lineStyle(1.5, PAL.woodEdge, 1);
+  if(w > h){
+    for(let i=80;i<w;i+=80){
+      gfx.beginPath(); gfx.moveTo(x+i, y); gfx.lineTo(x+i, y+h); gfx.strokePath();
+    }
+  } else {
+    for(let i=80;i<h;i+=80){
+      gfx.beginPath(); gfx.moveTo(x, y+i); gfx.lineTo(x+w, y+i); gfx.strokePath();
+    }
+  }
+  // outline
+  gfx.lineStyle(1.5, PAL.woodEdge, 1);
+  gfx.strokeRect(x+0.75, y+0.75, w-1.5, h-1.5);
+}
+function drawTeeMat(gfx, x, y, w, h, label){
+  gfx.fillStyle(0x000000, 0.35);
+  gfx.fillRect(x+2, y+3, w, h);
+  gfx.fillStyle(PAL.tee, 1);
+  gfx.fillRect(x, y, w, h);
+  gfx.lineStyle(2, 0x000000, 1);
+  gfx.strokeRect(x+1, y+1, w-2, h-2);
+}
+function drawCup(scene, cx, cy, r, label){
+  const gfx = scene.add.graphics();
+  gfx.setDepth(2);
+  // grass ring (lighter)
+  gfx.fillStyle(PAL.grassDark, 0.7);
+  gfx.fillCircle(cx, cy, r+4);
+  // hole
+  gfx.fillStyle(PAL.cup, 1);
+  gfx.fillCircle(cx, cy, r);
+  gfx.lineStyle(2, 0x000000, 1);
+  gfx.strokeCircle(cx, cy, r);
+  // flag pole
+  gfx.lineStyle(2.5, PAL.flagPole, 1);
+  gfx.beginPath();
+  gfx.moveTo(cx, cy);
+  gfx.lineTo(cx+22, cy-32);
+  gfx.strokePath();
+  // flag
+  gfx.fillStyle(PAL.flag, 1);
+  gfx.beginPath();
+  gfx.moveTo(cx+22, cy-32);
+  gfx.lineTo(cx+46, cy-26);
+  gfx.lineTo(cx+28, cy-18);
+  gfx.closePath();
+  gfx.fillPath();
+  gfx.lineStyle(1, 0x701a10, 1);
+  gfx.strokePath();
+  // flag label
+  if(label){
+    scene.add.text(cx+34, cy-24, label, {
+      fontFamily:'IBM Plex Mono', fontSize:'10px', color:'#ffffff'
+    }).setOrigin(0.5).setDepth(3);
+  }
+}
+function makeBall(scene, x, y){
+  const gfx = scene.add.graphics();
+  // shadow
+  gfx.fillStyle(0x000000, 0.35);
+  gfx.fillEllipse(2, 4, 18, 6);
+  // ball body
+  gfx.fillStyle(PAL.ball, 1);
+  gfx.fillCircle(0, 0, 8);
+  // rim
+  gfx.lineStyle(1, 0x8a8878, 1);
+  gfx.strokeCircle(0, 0, 8);
+  // highlight
+  gfx.fillStyle(0xffffff, 0.9);
+  gfx.fillCircle(-2.5, -2.5, 2.5);
+  gfx.setDepth(5);
+  // wrap in Matter physics body
+  const ball = scene.matter.add.image(x, y, undefined);
+  ball.setVisible(false);
+  ball.setCircle(8);
+  ball.setFriction(0.02);
+  ball.setFrictionAir(0.025); // realistic-ish air/turf drag
+  ball.setBounce(0.6);
+  ball.body.label = 'ball';
+  // attach the graphics; update its position each frame
+  gfx.x = x; gfx.y = y;
+  ball.gfx = gfx;
+  return ball;
+}
+function updateBallGfx(scene, ball){
+  if(!ball || !ball.gfx || !ball.body) return;
+  ball.gfx.x = ball.x;
+  ball.gfx.y = ball.y;
+}
+
+/* ============================================================
+   AUDIO — hand-crafted WebAudio (no external files for sketch)
+   ============================================================ */
+let audioCtx = null;
+function ensureAudio(){ if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)(); return audioCtx; }
+
+// Percussive PUTT — short click with body + snap
+function sfxPutt(){
+  const ctx = ensureAudio();
+  const t = ctx.currentTime;
+  // Snap: high-freq noise burst
+  const noise = ctx.createBufferSource();
+  const buf = ctx.createBuffer(1, ctx.sampleRate*0.05, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for(let i=0;i<data.length;i++) data[i] = (Math.random()*2-1) * (1 - i/data.length);
+  noise.buffer = buf;
+  const noiseFilter = ctx.createBiquadFilter();
+  noiseFilter.type='highpass'; noiseFilter.frequency.value=2000;
+  const noiseGain = ctx.createGain();
+  noiseGain.gain.setValueAtTime(0.35, t);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+  noise.connect(noiseFilter); noiseFilter.connect(noiseGain); noiseGain.connect(ctx.destination);
+  noise.start(t); noise.stop(t + 0.06);
+  // Body: low tock
+  const osc = ctx.createOscillator();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(160, t);
+  osc.frequency.exponentialRampToValueAtTime(70, t + 0.08);
+  const oscGain = ctx.createGain();
+  oscGain.gain.setValueAtTime(0.35, t);
+  oscGain.gain.exponentialRampToValueAtTime(0.001, t + 0.10);
+  osc.connect(oscGain); oscGain.connect(ctx.destination);
+  osc.start(t); osc.stop(t + 0.12);
+}
+
+// CUP — satisfying settle + rattle
+function sfxCup(){
+  const ctx = ensureAudio();
+  const t0 = ctx.currentTime;
+  // "Kerplunk" — three low bounces descending
+  const notes = [ {f:280, at:0},   {f:220, at:0.09}, {f:180, at:0.20} ];
+  notes.forEach(n=>{
+    const t = t0 + n.at;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(n.f, t);
+    osc.frequency.exponentialRampToValueAtTime(n.f*0.6, t + 0.15);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.25, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+    // low-pass to make it woody
+    const lp = ctx.createBiquadFilter();
+    lp.type='lowpass'; lp.frequency.value=600;
+    osc.connect(lp); lp.connect(g); g.connect(ctx.destination);
+    osc.start(t); osc.stop(t + 0.25);
+  });
+  // subtle high shimmer at the end
+  setTimeout(()=>{
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type='sine'; osc.frequency.value = 1400;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.08, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    osc.connect(g); g.connect(ctx.destination);
+    osc.start(t); osc.stop(t+0.5);
+  }, 300);
+}
+
+// SPLASH — filtered noise with descending pitch
+function sfxSplash(){
+  const ctx = ensureAudio();
+  const t = ctx.currentTime;
+  const noise = ctx.createBufferSource();
+  const buf = ctx.createBuffer(1, ctx.sampleRate*0.4, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for(let i=0;i<data.length;i++){
+    const env = Math.exp(-i / (ctx.sampleRate*0.15));
+    data[i] = (Math.random()*2-1) * env;
+  }
+  noise.buffer = buf;
+  const bp = ctx.createBiquadFilter();
+  bp.type='bandpass'; bp.frequency.setValueAtTime(1200, t);
+  bp.frequency.exponentialRampToValueAtTime(300, t + 0.4);
+  bp.Q.value = 3;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.35, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+  noise.connect(bp); bp.connect(g); g.connect(ctx.destination);
+  noise.start(t);
+}
+
+// Rolling — a subtle looped noise while ball is moving
+let rollNode = null, rollGain = null, rollFilter = null;
+function startRoll(){
+  if(rollNode) return;
+  const ctx = ensureAudio();
+  const buf = ctx.createBuffer(1, ctx.sampleRate*1, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for(let i=0;i<data.length;i++) data[i] = (Math.random()*2-1) * 0.5;
+  rollNode = ctx.createBufferSource();
+  rollNode.buffer = buf; rollNode.loop = true;
+  rollFilter = ctx.createBiquadFilter();
+  rollFilter.type='lowpass'; rollFilter.frequency.value = 500;
+  rollFilter.Q.value = 1.5;
+  rollGain = ctx.createGain(); rollGain.gain.value = 0;
+  rollNode.connect(rollFilter); rollFilter.connect(rollGain); rollGain.connect(ctx.destination);
+  rollNode.start();
+}
+function setRollLevel(speed){
+  if(!rollGain){ startRoll(); }
+  const ctx = ensureAudio();
+  const target = Math.min(0.06, speed / 60);
+  rollGain.gain.setTargetAtTime(target, ctx.currentTime, 0.05);
+  rollFilter.frequency.setTargetAtTime(400 + speed * 30, ctx.currentTime, 0.05);
+}
+function stopRoll(){
+  if(!rollGain) return;
+  const ctx = ensureAudio();
+  rollGain.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+}
+
+// Wall bounce — quick woody thump
+function sfxBounce(speed){
+  if(speed < 1.5) return; // no sound for tiny nudges
+  const ctx = ensureAudio();
+  const t = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  osc.type='triangle';
+  osc.frequency.setValueAtTime(280, t);
+  osc.frequency.exponentialRampToValueAtTime(140, t + 0.06);
+  const g = ctx.createGain();
+  const vol = Math.min(0.20, speed / 30);
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+  osc.connect(g); g.connect(ctx.destination);
+  osc.start(t); osc.stop(t+0.10);
+}
+
+// Medal jingle — arpeggiated chord
+function sfxMedal(medal){
+  const notes = medal==='gold' ? [523,659,784,1047,1319] : medal==='silver' ? [523,659,784,988] : [440,554,659];
+  const ctx = ensureAudio();
+  const t0 = ctx.currentTime;
+  notes.forEach((f,i)=>{
+    const t = t0 + i*0.11;
+    const osc = ctx.createOscillator(); osc.type='triangle'; osc.frequency.value = f;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.14, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    osc.connect(g); g.connect(ctx.destination);
+    osc.start(t); osc.stop(t + 0.4);
+  });
+}
+
+/* ============================================================
+   HUD helpers
+   ============================================================ */
+function drawHudChip(scene, x, y, label, valueRef){
+  const w = 140, h = 42;
+  const bg = scene.add.rectangle(x, y, w, h, 0x1a1510, 0.88).setOrigin(0,0).setStrokeStyle(1, 0x8a6a3a);
+  bg.setDepth(30);
+  const lab = scene.add.text(x + w/2, y + 6, label, {
+    fontFamily:'IBM Plex Mono', fontSize:'9px', color:'#a89880'
+  }).setOrigin(0.5,0).setDepth(31);
+  const val = scene.add.text(x + w/2, y + 20, '', {
+    fontFamily:'Fredoka', fontSize:'16px', color:'#f0d670'
+  }).setOrigin(0.5,0).setDepth(31);
+  return { update: (v)=>val.setText(v) };
+}
+function makeButton(scene, x, y, w, h, label, onClick){
+  const g = scene.add.graphics();
+  g.fillStyle(0x8a5a28, 1); g.fillRoundedRect(x, y, w, h, 8);
+  g.fillStyle(0xa87038, 1); g.fillRoundedRect(x, y, w, 6, {tl:8,tr:8,bl:0,br:0});
+  g.lineStyle(1.5, 0x3a1808, 1); g.strokeRoundedRect(x, y, w, h, 8);
+  const t = scene.add.text(x+w/2, y+h/2, label, {
+    fontFamily:'Fredoka', fontSize:'14px', color:'#ffe0b0', fontStyle:'700'
+  }).setOrigin(0.5);
+  const hit = scene.add.zone(x, y, w, h).setOrigin(0).setInteractive({useHandCursor:true});
+  hit.on('pointerdown', ()=>{ sfxPutt(); onClick(); });
+  hit.on('pointerover', ()=>t.setColor('#ffffff'));
+  hit.on('pointerout', ()=>t.setColor('#ffe0b0'));
+  g.setDepth(30); t.setDepth(31); hit.setDepth(32);
+  return { destroy: ()=>{ g.destroy(); t.destroy(); hit.destroy(); } };
+}
+
+/* ============================================================
+   CLUBHOUSE SCENE
+   ============================================================ */
+class ClubhouseScene extends Phaser.Scene {
+  constructor(){ super('Clubhouse'); }
+  create(){
+    const {width:W, height:H} = this.scale;
+    // Sky-ish gradient background
+    const bg = this.add.graphics();
+    bg.fillGradientStyle(0x2a4a20, 0x2a4a20, 0x1a3a18, 0x1a3a18, 1);
+    bg.fillRect(0,0,W,H);
+    // Title
+    this.add.text(W/2, 60, 'DIVOT', {
+      fontFamily:'Fredoka', fontSize:'56px', color:'#f0d670', fontStyle:'700'
+    }).setOrigin(0.5);
+    this.add.text(W/2, 108, 'the clubhouse · sketch 01', {
+      fontFamily:'IBM Plex Mono', fontSize:'13px', color:'#a89880'
+    }).setOrigin(0.5);
+    // Save summary
+    const save = loadSave();
+    const medalStr = ['bronze','silver','gold'].map(m=>{
+      const count = Object.values(save.medals).filter(x=>x===m).length;
+      return `${count}× ${m}`;
+    }).join('   ');
+    this.add.text(W/2, 138, medalStr, {
+      fontFamily:'IBM Plex Mono', fontSize:'11px', color:'#c8b088'
+    }).setOrigin(0.5);
+    // Course pins — only Range and Hole 1 clickable in sketch
+    const pins = [
+      {id:0, name:'DRIVING RANGE',    scene:'Range',   x:W/2 - 240, y:H/2 + 20, locked:false, sketch:false},
+      {id:1, name:'1 · STRAIGHT & TRUE', scene:'Hole1', x:W/2 - 80,  y:H/2 + 20, locked:false, sketch:false},
+      {id:2, name:'2 · THE DOGLEG',   scene:null, x:W/2 + 80,  y:H/2 + 20, locked:true},
+      {id:3, name:'3 · THE WINDMILL', scene:null, x:W/2 + 240, y:H/2 + 20, locked:true},
+    ];
+    pins.forEach(pin=>{
+      const w = 148, h = 116;
+      const px = pin.x - w/2, py = pin.y - h/2;
+      const gfx = this.add.graphics();
+      gfx.fillStyle(pin.locked ? 0x3a2818 : 0x8a5a28, 1);
+      gfx.fillRoundedRect(px, py, w, h, 12);
+      gfx.lineStyle(2, pin.locked ? 0x1a0a08 : 0x3a1808, 1);
+      gfx.strokeRoundedRect(px, py, w, h, 12);
+      // medal indicator
+      const medal = save.medals[pin.id];
+      if(medal){
+        const c = medal==='gold' ? 0xf0c840 : medal==='silver' ? 0xd0d0d0 : 0xc87a3a;
+        gfx.fillStyle(c, 1); gfx.fillCircle(px + w - 18, py + 18, 10);
+        gfx.lineStyle(1.5, 0x000000, 1); gfx.strokeCircle(px + w - 18, py + 18, 10);
+      }
+      // best score
+      const best = save.bestScores[pin.id];
+      if(best != null){
+        this.add.text(px + 16, py + 12, `best ${best}`, {
+          fontFamily:'IBM Plex Mono', fontSize:'10px', color:'#c8b088'
+        });
+      }
+      // name
+      this.add.text(pin.x, pin.y + 20, pin.name, {
+        fontFamily:'Fredoka', fontSize:'14px', color: pin.locked ? '#6a5a48' : '#ffe0b0', fontStyle:'700',
+        align:'center', wordWrap:{width:w-20}
+      }).setOrigin(0.5);
+      if(pin.locked){
+        this.add.text(pin.x, pin.y + 46, '🔒 sketch', {
+          fontFamily:'IBM Plex Mono', fontSize:'10px', color:'#8a7060'
+        }).setOrigin(0.5);
+      } else {
+        const zone = this.add.zone(px, py, w, h).setOrigin(0).setInteractive({useHandCursor:true});
+        zone.on('pointerdown', ()=>{ sfxPutt(); this.scene.start(pin.scene); });
+        zone.on('pointerover', ()=>{ gfx.clear();
+          gfx.fillStyle(0xa87038,1); gfx.fillRoundedRect(px,py,w,h,12);
+          gfx.lineStyle(3, 0xf0d670, 1); gfx.strokeRoundedRect(px,py,w,h,12);
+          if(medal){
+            const c = medal==='gold' ? 0xf0c840 : medal==='silver' ? 0xd0d0d0 : 0xc87a3a;
+            gfx.fillStyle(c, 1); gfx.fillCircle(px + w - 18, py + 18, 10);
+            gfx.lineStyle(1.5, 0x000000, 1); gfx.strokeCircle(px + w - 18, py + 18, 10);
+          }
+        });
+        zone.on('pointerout', ()=>{ gfx.clear();
+          gfx.fillStyle(0x8a5a28,1); gfx.fillRoundedRect(px,py,w,h,12);
+          gfx.lineStyle(2, 0x3a1808, 1); gfx.strokeRoundedRect(px,py,w,h,12);
+          if(medal){
+            const c = medal==='gold' ? 0xf0c840 : medal==='silver' ? 0xd0d0d0 : 0xc87a3a;
+            gfx.fillStyle(c, 1); gfx.fillCircle(px + w - 18, py + 18, 10);
+            gfx.lineStyle(1.5, 0x000000, 1); gfx.strokeCircle(px + w - 18, py + 18, 10);
+          }
+        });
+      }
+    });
+    // Footer
+    this.add.text(W/2, H - 40, 'click a pin to play · only Range + Hole 1 wired in this sketch', {
+      fontFamily:'IBM Plex Mono', fontSize:'10px', color:'#8a7060'
+    }).setOrigin(0.5);
+    this.add.text(W/2, H - 20, 'ESC in-game returns to Clubhouse', {
+      fontFamily:'IBM Plex Mono', fontSize:'10px', color:'#8a7060'
+    }).setOrigin(0.5);
+  }
+}
+
+/* ============================================================
+   COMMON HOLE SETUP HELPERS (walls as Matter bodies + visuals)
+   ============================================================ */
+function addWallBody(scene, x, y, w, h){
+  scene.matter.add.rectangle(x + w/2, y + h/2, w, h, {
+    isStatic: true, friction: 0.05, restitution: 0.7, label: 'wall'
+  });
+}
+function addWall(scene, wallGfx, x, y, w, h){
+  addWallBody(scene, x, y, w, h);
+  drawWoodenWall(wallGfx, x, y, w, h);
+}
+function addRectHazard(scene, hazardGfx, x, y, w, h, kind){
+  // kind: 'water' | 'sand'
+  if(kind==='water'){
+    // brick coping
+    hazardGfx.fillStyle(0x8a5228, 1); hazardGfx.fillRect(x-4, y-4, w+8, h+8);
+    hazardGfx.lineStyle(1.5, 0x2a1808, 1); hazardGfx.strokeRect(x-4, y-4, w+8, h+8);
+    hazardGfx.fillStyle(PAL.water, 1); hazardGfx.fillRect(x, y, w, h);
+    hazardGfx.lineStyle(1, PAL.waterDark, 1);
+    for(let i=0;i<4;i++){ hazardGfx.strokeRect(x + 6 + i*3, y + 4 + i*4, w - 12 - i*6, 4); }
+    // add sensor body
+    const sensor = scene.matter.add.rectangle(x + w/2, y + h/2, w, h, {
+      isStatic:true, isSensor:true, label:'water'
+    });
+  } else if(kind==='sand'){
+    hazardGfx.fillStyle(0x8a5228, 1); hazardGfx.fillRect(x-3, y-3, w+6, h+6);
+    hazardGfx.lineStyle(1.5, 0x2a1808, 1); hazardGfx.strokeRect(x-3, y-3, w+6, h+6);
+    hazardGfx.fillStyle(PAL.sand, 1); hazardGfx.fillRect(x, y, w, h);
+    hazardGfx.lineStyle(1, PAL.sandEdge, 1); hazardGfx.strokeRect(x, y, w, h);
+    // sand grains
+    for(let i=0;i<40;i++){
+      hazardGfx.fillStyle(0x8a6820, 0.6);
+      hazardGfx.fillCircle(x + Math.random()*w, y + Math.random()*h, 0.6);
+    }
+    const sensor = scene.matter.add.rectangle(x + w/2, y + h/2, w, h, {
+      isStatic:true, isSensor:true, label:'sand'
+    });
+  }
+}
+
+/* ============================================================
+   RANGE SCENE (Hole 0)
+   ============================================================ */
+class RangeScene extends Phaser.Scene {
+  constructor(){ super('Range'); }
+  create(){
+    const {width:W, height:H} = this.scale;
+    // Background — concrete surround
+    this.add.rectangle(0,0,W,H,0xb8b0a4).setOrigin(0);
+    // Course area (astroturf) — extra long for range shots
+    const course = {x:60, y:200, w:W-120, h:H-360};
+    // Grass
+    const grassGfx = this.add.graphics();
+    grassGfx.fillStyle(PAL.grass, 1); grassGfx.fillRect(course.x, course.y, course.w, course.h);
+    // stipple
+    for(let i=0;i<600;i++){
+      grassGfx.fillStyle(Math.random()<0.5 ? 0x486828 : 0x6a9a4a, 0.5);
+      grassGfx.fillCircle(course.x + Math.random()*course.w, course.y + Math.random()*course.h, 0.7);
+    }
+    // Distance markers on the ground
+    const markers = [5,10,20,30]; // in "meters" — visual only
+    const startX = course.x + 90; // tee position
+    markers.forEach(m=>{
+      const px = startX + m * 22; // 22px per meter — tune later
+      if(px > course.x + course.w - 20) return;
+      grassGfx.lineStyle(2, 0xffffff, 0.5);
+      grassGfx.beginPath(); grassGfx.moveTo(px, course.y); grassGfx.lineTo(px, course.y + course.h); grassGfx.strokePath();
+      this.add.text(px, course.y + course.h - 18, `${m}m`, {
+        fontFamily:'IBM Plex Mono', fontSize:'11px', color:'#ffffff'
+      }).setOrigin(0.5);
+    });
+    // Wooden perimeter walls
+    const wallGfx = this.add.graphics(); wallGfx.setDepth(1);
+    const wt = 16;
+    addWall(this, wallGfx, course.x - wt, course.y - wt, course.w + 2*wt, wt); // top
+    addWall(this, wallGfx, course.x - wt, course.y + course.h, course.w + 2*wt, wt); // bottom
+    addWall(this, wallGfx, course.x - wt, course.y, wt, course.h); // left
+    addWall(this, wallGfx, course.x + course.w, course.y, wt, course.h); // right
+    // Tee mat
+    const teePos = {x: startX - 20, y: course.y + course.h/2};
+    drawTeeMat(wallGfx, teePos.x - 24, teePos.y - 12, 48, 24);
+    this.add.text(teePos.x, teePos.y, 'TEE', {
+      fontFamily:'IBM Plex Mono', fontSize:'10px', color:'#e8c848', fontStyle:'700'
+    }).setOrigin(0.5).setDepth(3);
+    // HUD
+    drawHudChip(this, 20, 20, 'HOLE', {}).update('RANGE (0)');
+    const shotChip = drawHudChip(this, 180, 20, 'SHOTS', {});
+    const distChip = drawHudChip(this, 340, 20, 'LAST DIST', {});
+    this.shotsTaken = 0;
+    this.lastDistance = 0;
+    shotChip.update('0');
+    distChip.update('—');
+    // Return to Clubhouse button
+    makeButton(this, W - 200, 20, 180, 44, 'RETURN TO CLUBHOUSE', ()=>this.scene.start('Clubhouse'));
+    // Ball
+    this.ball = makeBall(this, teePos.x + 30, teePos.y);
+    this.teePos = {...teePos, ballX: teePos.x + 30};
+    // Aim system
+    this.aim = new AimSystem(this, this.ball, {
+      onFire: ()=>{
+        this.shotsTaken++;
+        this.shotStartX = this.ball.x; this.shotStartY = this.ball.y;
+        shotChip.update(String(this.shotsTaken));
+        sfxPutt();
+      }
+    });
+    // ESC → Clubhouse
+    this.input.keyboard.on('keydown-ESC', ()=>this.scene.start('Clubhouse'));
+    // Track when ball stops → measure distance and respawn
+    this.ballStopped = true;
+    this.events.on('update', ()=>{
+      updateBallGfx(this, this.ball);
+      const v = this.ball.body.velocity;
+      const speed = Math.hypot(v.x, v.y);
+      if(!this.ballStopped && speed < 0.15){
+        this.ballStopped = true;
+        this.lastDistance = Math.round(Phaser.Math.Distance.Between(this.shotStartX, this.shotStartY, this.ball.x, this.ball.y) / 22);
+        distChip.update(`${this.lastDistance}m`);
+        // Respawn ball at tee after brief pause
+        this.time.delayedCall(700, ()=>{
+          this.matter.body.setPosition(this.ball.body, {x: this.teePos.ballX, y: this.teePos.y});
+          this.matter.body.setVelocity(this.ball.body, {x:0,y:0});
+        });
+      }
+      if(speed > 0.5) this.ballStopped = false;
+    });
+    // Help text
+    this.add.text(W/2, H-60, '1. click the ball  ·  2. move mouse away (shows vector)  ·  3. click again to fire', {
+      fontFamily:'IBM Plex Mono', fontSize:'12px', color:'#5a4a30'
+    }).setOrigin(0.5);
+    this.add.text(W/2, H-40, 'infinite balls — this is your driving range', {
+      fontFamily:'IBM Plex Mono', fontSize:'10px', color:'#8a7050'
+    }).setOrigin(0.5);
+  }
+}
+
+/* ============================================================
+   HOLE 1 — Straight & True
+   ============================================================ */
+class Hole1Scene extends Phaser.Scene {
+  constructor(){ super('Hole1'); }
+  create(){
+    const {width:W, height:H} = this.scale;
+    const holeId = 1;
+    const par = 2;
+    // Background
+    this.add.rectangle(0,0,W,H,0xb8b0a4).setOrigin(0);
+    // Course — a rectangular fairway with a gentle dogleg at the end
+    const course = {x:100, y:150, w:W-200, h:H-320};
+    // Grass
+    const grassGfx = this.add.graphics();
+    grassGfx.fillStyle(PAL.grass, 1); grassGfx.fillRect(course.x, course.y, course.w, course.h);
+    // stipple
+    for(let i=0;i<800;i++){
+      grassGfx.fillStyle(Math.random()<0.5 ? 0x486828 : 0x6a9a4a, 0.55);
+      grassGfx.fillCircle(course.x + Math.random()*course.w, course.y + Math.random()*course.h, 0.7);
+    }
+    // subtle mowing stripes
+    for(let i=0;i<course.w;i+=32){
+      grassGfx.fillStyle(0x000000, 0.05);
+      grassGfx.fillRect(course.x + i, course.y, 16, course.h);
+    }
+    // Wooden walls
+    const wallGfx = this.add.graphics(); wallGfx.setDepth(1);
+    const wt = 16;
+    addWall(this, wallGfx, course.x - wt, course.y - wt, course.w + 2*wt, wt);
+    addWall(this, wallGfx, course.x - wt, course.y + course.h, course.w + 2*wt, wt);
+    addWall(this, wallGfx, course.x - wt, course.y, wt, course.h);
+    addWall(this, wallGfx, course.x + course.w, course.y, wt, course.h);
+    // Interior wall creating a gentle chicane — teach the ball how walls behave
+    const midWallX = course.x + course.w * 0.55;
+    const midWallY = course.y + course.h * 0.30;
+    addWall(this, wallGfx, midWallX, midWallY, course.w * 0.18, wt);
+    // Tee (lower left)
+    const teePos = {x: course.x + 80, y: course.y + course.h - 50};
+    drawTeeMat(wallGfx, teePos.x - 24, teePos.y - 12, 48, 24);
+    this.add.text(teePos.x, teePos.y, 'TEE 1', {
+      fontFamily:'IBM Plex Mono', fontSize:'10px', color:'#e8c848', fontStyle:'700'
+    }).setOrigin(0.5).setDepth(3);
+    // Cup (upper right, past the mid wall)
+    const cupPos = {x: course.x + course.w - 90, y: course.y + 90};
+    drawCup(this, cupPos.x, cupPos.y, 12, '1');
+    // Cup sensor body — bigger than the visual for forgiving detection
+    this.cupSensor = this.matter.add.rectangle(cupPos.x, cupPos.y, 20, 20, {
+      isStatic:true, isSensor:true, label:'cup'
+    });
+    this.cupPos = cupPos;
+    // HUD
+    const holeChip = drawHudChip(this, 20, 20, 'HOLE', {});
+    holeChip.update(`1 · PAR ${par}`);
+    const shotChip = drawHudChip(this, 180, 20, 'SHOTS', {});
+    shotChip.update('0');
+    const bestChip = drawHudChip(this, 340, 20, 'BEST', {});
+    const save = loadSave();
+    bestChip.update(save.bestScores[holeId] != null ? String(save.bestScores[holeId]) : '—');
+    makeButton(this, W - 200, 20, 180, 44, 'QUIT TO CLUBHOUSE', ()=>this.scene.start('Clubhouse'));
+    // Ball at tee
+    this.ball = makeBall(this, teePos.x + 30, teePos.y);
+    this.shots = 0;
+    this.complete = false;
+    // Aim
+    this.aim = new AimSystem(this, this.ball, {
+      onFire: ()=>{
+        if(this.complete) return;
+        this.shots++;
+        shotChip.update(String(this.shots));
+        sfxPutt();
+      }
+    });
+    // Cup collision — Matter emits pairs; sensor triggers on overlap
+    this.matter.world.on('collisionstart', (event)=>{
+      for(const p of event.pairs){
+        const a = p.bodyA, b = p.bodyB;
+        const ballBody = a.label==='ball' ? a : (b.label==='ball' ? b : null);
+        if(!ballBody) continue;
+        const otherLabel = a===ballBody ? b.label : a.label;
+        if(otherLabel==='cup' && !this.complete){ this.completeHole(); }
+        else if(otherLabel==='water'){
+          sfxSplash();
+          // reset to tee, +1 stroke
+          this.matter.body.setPosition(ballBody, {x:teePos.x + 30, y:teePos.y});
+          this.matter.body.setVelocity(ballBody, {x:0,y:0});
+          this.shots++;
+          shotChip.update(String(this.shots));
+        }
+        // sand slows dramatically
+        else if(otherLabel==='sand'){
+          this.ball.setFrictionAir(0.15);
+          this.time.delayedCall(1200, ()=>this.ball.setFrictionAir(0.025));
+        }
+      }
+    });
+    // ESC → Clubhouse
+    this.input.keyboard.on('keydown-ESC', ()=>this.scene.start('Clubhouse'));
+    // Ball follows physics body + per-frame cup-drop check
+    this.events.on('update', ()=>{
+      updateBallGfx(this, this.ball);
+      if(this.complete) return;
+      // Cup capture: if ball is close enough AND slow enough, sink it.
+      // Fast ball at high angle → lips out (minigolf realism)
+      const dx = this.ball.x - this.cupPos.x, dy = this.ball.y - this.cupPos.y;
+      const dist = Math.hypot(dx, dy);
+      const v = this.ball.body.velocity;
+      const speed = Math.hypot(v.x, v.y);
+      if(dist < 14 && speed < 3.2){
+        this.completeHole();
+      } else if(dist < 14 && speed >= 3.2){
+        // lip-out: nudge ball out of the cup tangentially
+        const angle = Math.atan2(dy, dx);
+        const tang = angle + Math.PI/2;
+        this.matter.body.setVelocity(this.ball.body, {
+          x: Math.cos(tang) * speed * 0.8,
+          y: Math.sin(tang) * speed * 0.8
+        });
+      }
+    });
+    // Help text
+    this.add.text(W/2, H-40, 'click ball → drag cursor away → click again to fire · ESC to quit', {
+      fontFamily:'IBM Plex Mono', fontSize:'12px', color:'#5a4a30'
+    }).setOrigin(0.5);
+  }
+  completeHole(){
+    this.complete = true;
+    this.aim._cancel();
+    sfxCup();
+    const result = recordScore(1, this.shots, 2);
+    if(result.medal) setTimeout(()=>sfxMedal(result.medal), 500);
+    // Banner
+    const {width:W, height:H} = this.scale;
+    const bg = this.add.rectangle(W/2, H/2, 500, 240, 0x0a0805, 0.94).setStrokeStyle(3, 0xf0d670);
+    bg.setDepth(50);
+    const medalTxt = result.medal ? result.medal.toUpperCase() : 'BOGEY';
+    const medalColor = result.medal==='gold' ? '#f0c840' : result.medal==='silver' ? '#d0d0d0' : result.medal==='bronze' ? '#c87a3a' : '#a25a3a';
+    this.add.text(W/2, H/2 - 70, 'HOLE COMPLETE', {
+      fontFamily:'Fredoka', fontSize:'22px', color:'#f0d670', fontStyle:'700'
+    }).setOrigin(0.5).setDepth(51);
+    this.add.text(W/2, H/2 - 30, medalTxt, {
+      fontFamily:'Fredoka', fontSize:'36px', color:medalColor, fontStyle:'700'
+    }).setOrigin(0.5).setDepth(51);
+    const diffStr = result.diff===0 ? 'PAR' : (result.diff>0 ? `+${result.diff}` : `${result.diff}`);
+    this.add.text(W/2, H/2 + 10, `${result.strokes} shots · ${diffStr}`, {
+      fontFamily:'IBM Plex Mono', fontSize:'14px', color:'#c8b088'
+    }).setOrigin(0.5).setDepth(51);
+    this.add.text(W/2, H/2 + 34, `best on this hole: ${result.best}`, {
+      fontFamily:'IBM Plex Mono', fontSize:'11px', color:'#8a7050'
+    }).setOrigin(0.5).setDepth(51);
+    // Buttons
+    makeButton(this, W/2 - 190, H/2 + 60, 170, 42, 'REPLAY', ()=>this.scene.restart());
+    makeButton(this, W/2 - 5, H/2 + 60, 170, 42, 'CLUBHOUSE', ()=>this.scene.start('Clubhouse'));
+  }
+}
+
+/* ============================================================
+   BOOT
+   ============================================================ */
+const config = {
+  type: Phaser.AUTO,
+  parent: 'game',
+  backgroundColor: '#2a2418',
+  scale: { mode: Phaser.Scale.RESIZE, width: window.innerWidth, height: window.innerHeight },
+  physics: {
+    default: 'matter',
+    matter: {
+      gravity: {x:0, y:0}, // top-down, no gravity
+      debug: false,
+      enableSleeping: false,
+    }
+  },
+  scene: [ClubhouseScene, RangeScene, Hole1Scene]
+};
+new Phaser.Game(config);
+</script>
+</body>
+</html>

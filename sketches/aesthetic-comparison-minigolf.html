@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cosmic Links — Minigolf Aesthetic Comparison</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600&family=Cormorant+Garamond:ital,wght@0,500&family=Fredoka:wght@600&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#f0e6d0;color:#2a2418;font-family:'Cormorant Garamond',serif;padding:24px;min-height:100vh}
+  h1{font-family:'Fredoka',sans-serif;font-weight:600;letter-spacing:2px;font-size:26px;text-align:center;color:#3a5c2a;margin-bottom:6px}
+  .intro{text-align:center;font-style:italic;color:#5a4a30;margin-bottom:22px;font-size:15px}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:22px;max-width:1200px;margin:0 auto}
+  .panel{background:#fff;border:1px solid #c0b090;border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+  .panel canvas{width:100%;display:block;height:340px;background:#e8e0c8}
+  .caption{padding:12px 18px;border-top:1px solid #c0b090;background:#faf3e0}
+  .caption h3{font-family:'Fredoka',sans-serif;font-size:15px;letter-spacing:1px;color:#3a5c2a;margin-bottom:4px}
+  .caption p{font-size:13px;color:#5a4a30;line-height:1.4}
+</style>
+</head>
+<body>
+<h1>MINIGOLF — Hole 3: The Old Windmill</h1>
+<div class="intro">same layout, four aesthetics · tee left · hills · sand · water · windmill hazard · cup with flag right</div>
+<div class="grid">
+  <div class="panel"><canvas id="p1" width="600" height="400"></canvas><div class="caption"><h3>1 · Sunday Afternoon Classic</h3><p>Painted realism, warm palette, hand-drawn book illustration feel. Timeless.</p></div></div>
+  <div class="panel"><canvas id="p2" width="600" height="400"></canvas><div class="caption"><h3>2 · Cardboard Diorama</h3><p>Paper-craft cutouts with soft drop shadows. Playful, tactile, cozy craft.</p></div></div>
+  <div class="panel"><canvas id="p3" width="600" height="400"></canvas><div class="caption"><h3>3 · Modern Flat Vector</h3><p>Flat colours, geometric hazards, generous negative space. Slick indie feel.</p></div></div>
+  <div class="panel"><canvas id="p4" width="600" height="400"></canvas><div class="caption"><h3>4 · Retro Arcade Pixel</h3><p>16-bit chunky, saturated palette. Charming Mario/Kirby-era nostalgia.</p></div></div>
+</div>
+
+<script>
+/* Shared hole layout (proportions of canvas):
+   - Fairway: winding path from tee (left) to cup (right)
+   - Tee: ball at (0.10, 0.75)
+   - Sand bunker: around (0.35, 0.45)
+   - Water hazard: around (0.55, 0.72)
+   - Windmill: around (0.62, 0.35) — the hazard between fairway sections
+   - Hill contour: two rounded ridges suggesting elevation change
+   - Cup+flag: at (0.90, 0.28)
+*/
+const LAYOUT={
+  tee:{x:0.10,y:0.75},
+  sand:{x:0.32,y:0.48,rx:0.08,ry:0.05},
+  water:{x:0.55,y:0.75,rx:0.10,ry:0.07},
+  windmill:{x:0.62,y:0.36},
+  cup:{x:0.90,y:0.26},
+  hill1:{x:0.42,y:0.62,rx:0.14,ry:0.10}, // subtle raised knoll
+  hill2:{x:0.78,y:0.50,rx:0.13,ry:0.09},
+};
+
+function P(c,pt){return {x:pt.x*c.width, y:pt.y*c.height};}
+function S(c,v){return v*Math.min(c.width,c.height);}
+
+/* ===================== 1. SUNDAY AFTERNOON CLASSIC ===================== */
+(function(){
+  const c=document.getElementById('p1'), x=c.getContext('2d');
+  const W=c.width, H=c.height;
+
+  // background: warm out-of-bounds — a soft grass area with painted texture
+  const bg=x.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#a8b878');bg.addColorStop(1,'#8a9a5a');
+  x.fillStyle=bg;x.fillRect(0,0,W,H);
+  // painted noise (rough grass)
+  for(let i=0;i<400;i++){
+    x.fillStyle='rgba('+(60+Math.random()*40)+','+(80+Math.random()*40)+','+(40+Math.random()*30)+',0.25)';
+    x.fillRect(Math.random()*W,Math.random()*H,1.4,1.4);
+  }
+
+  // fairway — the manicured path
+  x.save();
+  const path=new Path2D();
+  path.moveTo(W*0.05,H*0.88);
+  path.quadraticCurveTo(W*0.30,H*0.75, W*0.42,H*0.55);
+  path.quadraticCurveTo(W*0.55,H*0.35, W*0.72,H*0.38);
+  path.quadraticCurveTo(W*0.86,H*0.40, W*0.95,H*0.20);
+  x.lineWidth=110;x.lineCap='round';x.lineJoin='round';
+  // fairway outer (darker)
+  x.strokeStyle='#6b8a48';x.stroke(path);
+  x.lineWidth=90;x.strokeStyle='#7fa15a';x.stroke(path);
+  x.lineWidth=70;x.strokeStyle='#94b56d';x.stroke(path);
+  x.restore();
+  // painted fairway texture (subtle darker patches)
+  x.save();x.beginPath();
+  const clipPath=new Path2D();
+  clipPath.moveTo(W*0.05,H*0.88);clipPath.quadraticCurveTo(W*0.30,H*0.75, W*0.42,H*0.55);
+  clipPath.quadraticCurveTo(W*0.55,H*0.35, W*0.72,H*0.38);
+  clipPath.quadraticCurveTo(W*0.86,H*0.40, W*0.95,H*0.20);
+  x.lineWidth=90;x.strokeStyle='rgba(255,255,255,0)';x.stroke(clipPath);
+  x.restore();
+  // brick edging (double dashed line hugging fairway)
+  x.save();x.strokeStyle='#8a4a2c';x.lineWidth=3;x.setLineDash([6,4]);
+  x.lineWidth=95;x.strokeStyle='rgba(140,80,44,0.4)';x.stroke(path);
+  x.lineWidth=80;x.strokeStyle='rgba(148,181,109,0)';x.stroke(path);
+  x.setLineDash([]);x.restore();
+
+  // hills — soft contour shading (painted highlight)
+  drawContourHill1(x, W*0.42, H*0.62, W*0.14, H*0.09, '#a7c07a', '#8ba660');
+  drawContourHill1(x, W*0.78, H*0.50, W*0.13, H*0.08, '#a7c07a', '#8ba660');
+
+  // sand bunker — painted rough
+  x.save();
+  const sx=W*LAYOUT.sand.x, sy=H*LAYOUT.sand.y;
+  const sg=x.createRadialGradient(sx-8,sy-6,3,sx,sy,S(c,0.10));
+  sg.addColorStop(0,'#f0dea2');sg.addColorStop(0.7,'#d8c078');sg.addColorStop(1,'#b8a058');
+  x.fillStyle=sg;
+  x.beginPath();x.ellipse(sx,sy,S(c,0.09),S(c,0.055),0.4,0,7);x.fill();
+  // painted sand grains
+  for(let i=0;i<20;i++){
+    x.fillStyle='rgba(140,110,50,0.35)';
+    x.fillRect(sx-30+Math.random()*60, sy-15+Math.random()*30, 1.5, 1.5);
+  }
+  x.restore();
+
+  // water hazard — pond with painted ripples
+  x.save();
+  const wx=W*LAYOUT.water.x, wy=H*LAYOUT.water.y;
+  const wg=x.createRadialGradient(wx-10,wy-8,5,wx,wy,S(c,0.13));
+  wg.addColorStop(0,'#a8d8e0');wg.addColorStop(0.5,'#78b4c8');wg.addColorStop(1,'#5498b0');
+  x.fillStyle=wg;
+  x.beginPath();x.ellipse(wx,wy,S(c,0.13),S(c,0.08),-0.2,0,7);x.fill();
+  // shore highlight
+  x.strokeStyle='rgba(200,220,225,0.85)';x.lineWidth=2;
+  x.beginPath();x.ellipse(wx,wy-3,S(c,0.11),S(c,0.06),-0.2,Math.PI*0.9,Math.PI*2.1);x.stroke();
+  // painted ripples
+  x.strokeStyle='rgba(255,255,255,0.5)';x.lineWidth=1.2;
+  for(let i=0;i<3;i++){x.beginPath();x.ellipse(wx-8+i*4,wy-2+i*3,20-i*4,4-i*0.5,0,0,Math.PI);x.stroke();}
+  x.restore();
+
+  // windmill — wooden with painted planks
+  drawWindmill1(x, W*LAYOUT.windmill.x, H*LAYOUT.windmill.y, S(c,0.14));
+
+  // cup + flag (painted)
+  drawCup1(x, W*LAYOUT.cup.x, H*LAYOUT.cup.y, S(c,0.05));
+
+  // ball (painted, with shadow)
+  const tee=P(c,LAYOUT.tee);
+  x.fillStyle='rgba(0,0,0,0.25)';x.beginPath();x.ellipse(tee.x+2,tee.y+4,10,4,0,0,7);x.fill();
+  const ballg=x.createRadialGradient(tee.x-3,tee.y-3,1,tee.x,tee.y,10);
+  ballg.addColorStop(0,'#fff');ballg.addColorStop(0.6,'#eae2d0');ballg.addColorStop(1,'#8c8478');
+  x.fillStyle=ballg;x.beginPath();x.arc(tee.x,tee.y,9,0,7);x.fill();
+
+  // aim (painted dashed arc, pulled back from ball)
+  x.strokeStyle='rgba(180,60,50,0.65)';x.lineWidth=2;x.setLineDash([5,4]);
+  x.beginPath();x.moveTo(tee.x,tee.y);x.lineTo(tee.x-42,tee.y+22);x.stroke();
+  x.setLineDash([]);
+  x.fillStyle='rgba(180,60,50,0.85)';x.beginPath();x.arc(tee.x-42,tee.y+22,3.5,0,7);x.fill();
+
+  // helper (defined locally)
+  function drawContourHill1(x,cx,cy,rx,ry,light,dark){
+    x.save();
+    // outer soft shadow
+    x.fillStyle='rgba(60,80,40,0.15)';x.beginPath();x.ellipse(cx+3,cy+3,rx,ry,0,0,7);x.fill();
+    // fill lighter to hint elevation
+    x.fillStyle=light;x.beginPath();x.ellipse(cx,cy,rx*0.75,ry*0.75,0,0,7);x.fill();
+    // contour lines (like a topo map, painterly)
+    x.strokeStyle=dark;x.lineWidth=1.5;
+    for(let i=0;i<3;i++){x.beginPath();x.ellipse(cx,cy,rx*(0.9-i*0.22),ry*(0.9-i*0.22),0,0,7);x.stroke();}
+    x.restore();
+  }
+})();
+
+function drawWindmill1(x,cx,cy,size){
+  // painted stone base
+  x.save();
+  x.fillStyle='rgba(0,0,0,0.28)';x.beginPath();x.ellipse(cx+3,cy+size*0.5+2,size*0.35,size*0.1,0,0,7);x.fill();
+  const bg=x.createRadialGradient(cx-size*0.15,cy-size*0.1,0,cx,cy,size*0.5);
+  bg.addColorStop(0,'#e8d8b0');bg.addColorStop(0.6,'#b89870');bg.addColorStop(1,'#7a6040');
+  x.fillStyle=bg;
+  x.beginPath();x.arc(cx,cy,size*0.32,0,7);x.fill();
+  x.strokeStyle='#5a4028';x.lineWidth=1.5;x.stroke();
+  // painted plank lines
+  x.strokeStyle='#8a6a3a';x.lineWidth=1;
+  for(let i=-3;i<=3;i++){x.beginPath();x.moveTo(cx-size*0.28,cy+i*size*0.055);x.lineTo(cx+size*0.28,cy+i*size*0.055);x.stroke();}
+  // door
+  x.fillStyle='#5a3810';x.beginPath();x.rect(cx-size*0.05,cy+size*0.08,size*0.10,size*0.22);x.fill();
+  x.strokeStyle='#2a1808';x.stroke();
+  // sails (top-down view, so 4 blades cross)
+  x.strokeStyle='#3a2818';x.lineWidth=size*0.03;
+  x.save();x.translate(cx,cy);
+  for(let a=0;a<4;a++){
+    x.rotate(Math.PI/2);
+    x.fillStyle='#e0d6b0';
+    x.beginPath();
+    x.moveTo(0,-size*0.05);x.lineTo(size*0.42,-size*0.10);x.lineTo(size*0.42,size*0.02);x.lineTo(0,size*0.05);x.closePath();
+    x.fill();x.stroke();
+  }
+  x.restore();
+  // center hub
+  x.fillStyle='#3a2818';x.beginPath();x.arc(cx,cy,size*0.06,0,7);x.fill();
+  x.restore();
+}
+function drawCup1(x,cx,cy,size){
+  x.save();
+  // hole (dark)
+  x.fillStyle='#000';x.beginPath();x.arc(cx,cy,size*0.9,0,7);x.fill();
+  // rim
+  x.strokeStyle='#5a4028';x.lineWidth=2;x.stroke();
+  // grass around hole
+  x.strokeStyle='rgba(60,90,40,0.5)';
+  for(let i=0;i<8;i++){const a=i/8*Math.PI*2;x.beginPath();x.moveTo(cx+Math.cos(a)*size*1.0,cy+Math.sin(a)*size*1.0);x.lineTo(cx+Math.cos(a)*size*1.3,cy+Math.sin(a)*size*1.3);x.stroke();}
+  // flag pole
+  x.strokeStyle='#8a6a3a';x.lineWidth=2;x.beginPath();x.moveTo(cx,cy);x.lineTo(cx,cy-size*3.5);x.stroke();
+  // flag (painted red)
+  x.fillStyle='#c04a3a';
+  x.beginPath();x.moveTo(cx,cy-size*3.5);x.lineTo(cx+size*1.6,cy-size*3.0);x.lineTo(cx,cy-size*2.5);x.closePath();x.fill();
+  x.strokeStyle='#7a2a1a';x.lineWidth=1;x.stroke();
+  x.restore();
+}
+
+/* ===================== 2. CARDBOARD DIORAMA ===================== */
+(function(){
+  const c=document.getElementById('p2'), x=c.getContext('2d');
+  const W=c.width, H=c.height;
+
+  // background: brown craft paper (out-of-bounds)
+  x.fillStyle='#c8a878';x.fillRect(0,0,W,H);
+  // fibrous texture
+  for(let i=0;i<300;i++){
+    x.fillStyle='rgba('+(150+Math.random()*40)+','+(120+Math.random()*30)+','+(80+Math.random()*30)+',0.4)';
+    x.fillRect(Math.random()*W,Math.random()*H,2,0.7);
+  }
+
+  // fairway — green felt cutout with paper edge + soft shadow
+  drawCutoutPath(x, [
+    [W*0.05,H*0.88],[W*0.30,H*0.75],[W*0.42,H*0.55],
+    [W*0.55,H*0.35],[W*0.72,H*0.38],[W*0.86,H*0.40],[W*0.95,H*0.20]
+  ], 60, '#68a468', '#3a6a3a');
+
+  // hills — layered cutouts (slightly darker green ovals on the fairway)
+  drawCutoutBlob(x, W*0.42, H*0.62, W*0.14, H*0.09, '#4a8858', '#2a5838');
+  drawCutoutBlob(x, W*0.78, H*0.50, W*0.13, H*0.08, '#4a8858', '#2a5838');
+
+  // sand — tan cardstock cutout
+  drawCutoutBlob(x, W*LAYOUT.sand.x, H*LAYOUT.sand.y, S(c,0.10), S(c,0.06), '#e8c890', '#a88858');
+
+  // water — blue paper cutout with cellophane sheen
+  drawCutoutBlob(x, W*LAYOUT.water.x, H*LAYOUT.water.y, S(c,0.13), S(c,0.08), '#78bcd8', '#3a7898');
+  // cellophane sheen
+  const wx=W*LAYOUT.water.x,wy=H*LAYOUT.water.y;
+  x.save();x.globalAlpha=0.35;x.fillStyle='#fff';
+  x.beginPath();x.ellipse(wx-15,wy-10,S(c,0.06),S(c,0.02),-0.3,0,7);x.fill();
+  x.restore();
+
+  // windmill — cardboard cutout
+  drawWindmill2(x, W*LAYOUT.windmill.x, H*LAYOUT.windmill.y, S(c,0.14));
+
+  // cup + flag
+  drawCup2(x, W*LAYOUT.cup.x, H*LAYOUT.cup.y, S(c,0.05));
+
+  // ball — small paper cutout circle
+  const tee=P(c,LAYOUT.tee);
+  x.fillStyle='rgba(0,0,0,0.35)';x.beginPath();x.ellipse(tee.x+2,tee.y+4,9,3,0,0,7);x.fill();
+  x.fillStyle='#fff';x.beginPath();x.arc(tee.x,tee.y,9,0,7);x.fill();
+  x.strokeStyle='#c0b090';x.lineWidth=1;x.stroke();
+
+  // aim — dashed
+  x.strokeStyle='rgba(220,60,60,0.75)';x.lineWidth=2;x.setLineDash([4,4]);
+  x.beginPath();x.moveTo(tee.x,tee.y);x.lineTo(tee.x-42,tee.y+22);x.stroke();x.setLineDash([]);
+
+  function drawCutoutPath(x, pts, width, fill, edge){
+    x.save();
+    // shadow beneath
+    x.strokeStyle='rgba(0,0,0,0.35)';x.lineWidth=width;x.lineCap='round';x.lineJoin='round';
+    x.beginPath();x.moveTo(pts[0][0]+4,pts[0][1]+5);for(let i=1;i<pts.length-1;i++){x.quadraticCurveTo(pts[i][0]+4,pts[i][1]+5, (pts[i][0]+pts[i+1][0])/2+4,(pts[i][1]+pts[i+1][1])/2+5);}x.stroke();
+    // felt fill
+    x.strokeStyle=fill;x.lineWidth=width;x.beginPath();x.moveTo(pts[0][0],pts[0][1]);
+    for(let i=1;i<pts.length-1;i++){x.quadraticCurveTo(pts[i][0],pts[i][1], (pts[i][0]+pts[i+1][0])/2,(pts[i][1]+pts[i+1][1])/2);}x.stroke();
+    // fibrous edge highlight
+    x.strokeStyle=edge;x.lineWidth=2;x.setLineDash([3,2]);
+    x.stroke();x.setLineDash([]);
+    x.restore();
+  }
+  function drawCutoutBlob(x, cx, cy, rx, ry, fill, edge){
+    x.save();
+    // shadow
+    x.fillStyle='rgba(0,0,0,0.30)';x.beginPath();x.ellipse(cx+3,cy+4,rx,ry,0,0,7);x.fill();
+    // fill
+    x.fillStyle=fill;x.beginPath();x.ellipse(cx,cy,rx,ry,0,0,7);x.fill();
+    // edge
+    x.strokeStyle=edge;x.lineWidth=1.5;x.stroke();
+    x.restore();
+  }
+})();
+
+function drawWindmill2(x,cx,cy,size){
+  x.save();
+  // shadow of whole building
+  x.fillStyle='rgba(0,0,0,0.35)';x.beginPath();x.ellipse(cx+4,cy+size*0.5+4,size*0.4,size*0.1,0,0,7);x.fill();
+  // base — hexagonal cardboard cutout (top-down)
+  x.fillStyle='#c88c50';
+  x.beginPath();
+  for(let i=0;i<6;i++){const a=i/6*Math.PI*2-Math.PI/2;const px=cx+Math.cos(a)*size*0.32;const py=cy+Math.sin(a)*size*0.32;i===0?x.moveTo(px,py):x.lineTo(px,py);}
+  x.closePath();x.fill();
+  x.strokeStyle='#6a4028';x.lineWidth=1.5;x.stroke();
+  // crease/fold lines
+  x.strokeStyle='rgba(90,60,30,0.35)';x.lineWidth=1;
+  for(let i=0;i<6;i++){const a=i/6*Math.PI*2-Math.PI/2;const px=cx+Math.cos(a)*size*0.32;const py=cy+Math.sin(a)*size*0.32;x.beginPath();x.moveTo(cx,cy);x.lineTo(px,py);x.stroke();}
+  // door
+  x.fillStyle='#4a2a10';x.fillRect(cx-size*0.05,cy+size*0.06,size*0.10,size*0.18);
+  // sails — cardboard blades with shadow
+  x.save();x.translate(cx,cy);
+  for(let a=0;a<4;a++){
+    x.rotate(Math.PI/2);
+    // shadow
+    x.fillStyle='rgba(0,0,0,0.30)';x.beginPath();x.moveTo(4,-size*0.06+4);x.lineTo(size*0.44+4,-size*0.08+4);x.lineTo(size*0.44+4,size*0.04+4);x.lineTo(4,size*0.06+4);x.closePath();x.fill();
+    // blade
+    x.fillStyle='#e8dcb0';x.beginPath();x.moveTo(0,-size*0.06);x.lineTo(size*0.44,-size*0.08);x.lineTo(size*0.44,size*0.04);x.lineTo(0,size*0.06);x.closePath();x.fill();
+    x.strokeStyle='#8a6a3a';x.lineWidth=1;x.stroke();
+  }
+  x.restore();
+  // hub
+  x.fillStyle='#3a2818';x.beginPath();x.arc(cx,cy,size*0.07,0,7);x.fill();
+  x.restore();
+}
+function drawCup2(x,cx,cy,size){
+  x.save();
+  x.fillStyle='rgba(0,0,0,0.4)';x.beginPath();x.arc(cx+2,cy+3,size*0.95,0,7);x.fill();
+  x.fillStyle='#000';x.beginPath();x.arc(cx,cy,size*0.9,0,7);x.fill();
+  x.strokeStyle='#3a2818';x.lineWidth=2;x.stroke();
+  // flag pole (paper straw look)
+  x.strokeStyle='#c8a878';x.lineWidth=3;x.beginPath();x.moveTo(cx,cy);x.lineTo(cx,cy-size*3.5);x.stroke();
+  x.strokeStyle='#8a6a3a';x.lineWidth=1;x.beginPath();x.moveTo(cx,cy);x.lineTo(cx,cy-size*3.5);x.stroke();
+  // flag (paper triangle with shadow)
+  x.fillStyle='rgba(0,0,0,0.3)';x.beginPath();x.moveTo(cx+2,cy-size*3.5+3);x.lineTo(cx+size*1.6+2,cy-size*3.0+3);x.lineTo(cx+2,cy-size*2.5+3);x.closePath();x.fill();
+  x.fillStyle='#e04a4a';x.beginPath();x.moveTo(cx,cy-size*3.5);x.lineTo(cx+size*1.6,cy-size*3.0);x.lineTo(cx,cy-size*2.5);x.closePath();x.fill();
+  x.strokeStyle='#8a2010';x.lineWidth=1;x.stroke();
+  x.restore();
+}
+
+/* ===================== 3. MODERN FLAT VECTOR ===================== */
+(function(){
+  const c=document.getElementById('p3'), x=c.getContext('2d');
+  const W=c.width, H=c.height;
+
+  // background: cream/tan (out-of-bounds)
+  x.fillStyle='#f4ead6';x.fillRect(0,0,W,H);
+
+  // fairway — smooth rounded shape
+  x.save();
+  x.strokeStyle='#8ec78f';x.lineWidth=76;x.lineCap='round';x.lineJoin='round';
+  x.beginPath();x.moveTo(W*0.05,H*0.88);
+  x.quadraticCurveTo(W*0.30,H*0.75, W*0.42,H*0.55);
+  x.quadraticCurveTo(W*0.55,H*0.35, W*0.72,H*0.38);
+  x.quadraticCurveTo(W*0.86,H*0.40, W*0.95,H*0.20);x.stroke();
+  // inner light stroke (gradient hint)
+  x.strokeStyle='#adde9d';x.lineWidth=58;x.stroke();
+  x.restore();
+
+  // hills — subtle darker circles with soft shadow
+  drawFlatHill3(x, W*0.42, H*0.62, W*0.13, H*0.085);
+  drawFlatHill3(x, W*0.78, H*0.50, W*0.12, H*0.075);
+
+  // sand — clean beige oval, tiny dot texture
+  x.save();
+  const sx=W*LAYOUT.sand.x, sy=H*LAYOUT.sand.y;
+  x.fillStyle='#f5d99d';x.beginPath();x.ellipse(sx,sy,S(c,0.09),S(c,0.055),0.3,0,7);x.fill();
+  x.strokeStyle='#c89e58';x.lineWidth=1.5;x.stroke();
+  x.fillStyle='rgba(150,110,60,0.35)';
+  for(let i=0;i<8;i++){x.beginPath();x.arc(sx-30+Math.random()*60,sy-15+Math.random()*30,1.2,0,7);x.fill();}
+  x.restore();
+
+  // water — teal with clean edge
+  x.save();
+  const wx=W*LAYOUT.water.x, wy=H*LAYOUT.water.y;
+  x.fillStyle='#7ec4d8';x.beginPath();x.ellipse(wx,wy,S(c,0.13),S(c,0.08),-0.2,0,7);x.fill();
+  x.strokeStyle='#4a90a8';x.lineWidth=2;x.stroke();
+  // inner lighter
+  x.fillStyle='rgba(255,255,255,0.35)';x.beginPath();x.ellipse(wx-6,wy-4,S(c,0.09),S(c,0.05),-0.2,0,7);x.fill();
+  x.restore();
+
+  // windmill
+  drawWindmill3(x, W*LAYOUT.windmill.x, H*LAYOUT.windmill.y, S(c,0.14));
+
+  // cup + flag
+  drawCup3(x, W*LAYOUT.cup.x, H*LAYOUT.cup.y, S(c,0.05));
+
+  // ball
+  const tee=P(c,LAYOUT.tee);
+  x.fillStyle='rgba(0,0,0,0.20)';x.beginPath();x.ellipse(tee.x+2,tee.y+4,9,3.5,0,0,7);x.fill();
+  x.fillStyle='#fff';x.beginPath();x.arc(tee.x,tee.y,10,0,7);x.fill();
+  x.strokeStyle='#c8c0b0';x.lineWidth=1.2;x.stroke();
+
+  // aim — trajectory dots (dotted arc)
+  x.fillStyle='#e6a54a';
+  for(let t=1;t<=5;t++){const px=tee.x-t*10,py=tee.y+t*4.5;x.beginPath();x.arc(px,py,2.5,0,7);x.fill();}
+
+  function drawFlatHill3(x,cx,cy,rx,ry){
+    x.save();
+    x.fillStyle='#7fb680';x.beginPath();x.ellipse(cx,cy,rx,ry,0,0,7);x.fill();
+    x.strokeStyle='rgba(80,120,80,0.45)';x.lineWidth=1.5;
+    x.beginPath();x.ellipse(cx,cy,rx*0.65,ry*0.65,0,0,7);x.stroke();
+    x.restore();
+  }
+})();
+function drawWindmill3(x,cx,cy,size){
+  x.save();
+  x.fillStyle='rgba(0,0,0,0.15)';x.beginPath();x.ellipse(cx+3,cy+size*0.5+3,size*0.36,size*0.09,0,0,7);x.fill();
+  // clean flat base circle
+  x.fillStyle='#e6b878';x.beginPath();x.arc(cx,cy,size*0.32,0,7);x.fill();
+  x.strokeStyle='#8a5a2a';x.lineWidth=2;x.stroke();
+  // door
+  x.fillStyle='#5a3810';x.beginPath();x.rect(cx-size*0.055,cy+size*0.08,size*0.11,size*0.20);x.fill();
+  // sails
+  x.save();x.translate(cx,cy);
+  for(let a=0;a<4;a++){
+    x.rotate(Math.PI/2);
+    x.fillStyle='#f5efd8';x.beginPath();x.moveTo(0,-size*0.06);x.lineTo(size*0.44,-size*0.08);x.lineTo(size*0.44,size*0.02);x.lineTo(0,size*0.05);x.closePath();x.fill();
+    x.strokeStyle='#8a6a3a';x.lineWidth=1.5;x.stroke();
+  }
+  x.restore();
+  // hub
+  x.fillStyle='#3a2818';x.beginPath();x.arc(cx,cy,size*0.08,0,7);x.fill();
+  x.restore();
+}
+function drawCup3(x,cx,cy,size){
+  x.save();
+  // grass ring
+  x.strokeStyle='#5a8a4a';x.lineWidth=3;x.beginPath();x.arc(cx,cy,size*1.4,0,7);x.stroke();
+  x.fillStyle='#0f1a10';x.beginPath();x.arc(cx,cy,size*0.9,0,7);x.fill();
+  x.strokeStyle='#000';x.lineWidth=2;x.stroke();
+  // flag pole
+  x.strokeStyle='#c8b078';x.lineWidth=2.5;x.beginPath();x.moveTo(cx,cy);x.lineTo(cx,cy-size*3.5);x.stroke();
+  // flag (bold coral)
+  x.fillStyle='#ff5a4a';x.beginPath();x.moveTo(cx,cy-size*3.5);x.lineTo(cx+size*1.6,cy-size*3.0);x.lineTo(cx,cy-size*2.5);x.closePath();x.fill();
+  x.restore();
+}
+
+/* ===================== 4. RETRO ARCADE PIXEL ===================== */
+(function(){
+  const c=document.getElementById('p4'), x=c.getContext('2d');
+  const W=c.width, H=c.height;
+  x.imageSmoothingEnabled=false;
+  const PX=5;
+  const gw=Math.floor(W/PX), gh=Math.floor(H/PX);
+  const off=document.createElement('canvas');off.width=gw;off.height=gh;
+  const o=off.getContext('2d');o.imageSmoothingEnabled=false;
+
+  // background: dark green out-of-bounds (rough)
+  o.fillStyle='#3a6828';o.fillRect(0,0,gw,gh);
+  // rough grass dither
+  for(let py=0;py<gh;py++)for(let px=0;px<gw;px++){
+    if((px+py)%7===0)o.fillStyle='#2a5820';
+    else if((px*3+py)%11===0)o.fillStyle='#48782e';
+    else continue;
+    o.fillRect(px,py,1,1);
+  }
+
+  // fairway — bright green pixel path
+  const pathPoints=[];
+  const anchor=[[0.05,0.88],[0.30,0.75],[0.42,0.55],[0.55,0.35],[0.72,0.38],[0.86,0.40],[0.95,0.20]];
+  for(let seg=0;seg<anchor.length-1;seg++){
+    const [x0,y0]=anchor[seg],[x1,y1]=anchor[seg+1];
+    for(let t=0;t<=1;t+=0.03)pathPoints.push([x0+(x1-x0)*t, y0+(y1-y0)*t]);
+  }
+  const fwWidth=6;
+  pathPoints.forEach(([nx,ny])=>{
+    const px=Math.floor(nx*gw), py=Math.floor(ny*gh);
+    for(let dy=-fwWidth;dy<=fwWidth;dy++)for(let dx=-fwWidth;dx<=fwWidth;dx++){
+      if(dx*dx+dy*dy>fwWidth*fwWidth)continue;
+      const nx2=px+dx,ny2=py+dy;if(nx2<0||ny2<0||nx2>=gw||ny2>=gh)continue;
+      // stipple two greens for texture
+      o.fillStyle=((nx2+ny2)%2)?'#78c848':'#68b838';
+      o.fillRect(nx2,ny2,1,1);
+    }
+    // edge line (darker)
+    for(let dy=-fwWidth-1;dy<=fwWidth+1;dy++)for(let dx=-fwWidth-1;dx<=fwWidth+1;dx++){
+      const d=dx*dx+dy*dy;
+      if(d>fwWidth*fwWidth && d<=(fwWidth+1)*(fwWidth+1)){
+        const nx2=px+dx,ny2=py+dy;if(nx2<0||ny2<0||nx2>=gw||ny2>=gh)continue;
+        o.fillStyle='#2a4818';o.fillRect(nx2,ny2,1,1);
+      }
+    }
+  });
+
+  // hills — darker green circles on fairway
+  drawPixelBlob(o, Math.round(0.42*gw), Math.round(0.62*gh), 8, '#4a9028', '#3a7020');
+  drawPixelBlob(o, Math.round(0.78*gw), Math.round(0.50*gh), 7, '#4a9028', '#3a7020');
+
+  // sand — yellow pixel blob
+  drawPixelBlob(o, Math.round(LAYOUT.sand.x*gw), Math.round(LAYOUT.sand.y*gh), 7, '#f8d878', '#c89838');
+  o.fillStyle='#c8983888';for(let i=0;i<6;i++){o.fillRect(Math.round(LAYOUT.sand.x*gw)-3+Math.floor(Math.random()*6), Math.round(LAYOUT.sand.y*gh)-2+Math.floor(Math.random()*4),1,1);}
+
+  // water — teal pixel blob with dither
+  const wpx=Math.round(LAYOUT.water.x*gw), wpy=Math.round(LAYOUT.water.y*gh);
+  drawPixelBlob(o, wpx, wpy, 10, '#38a8d8', '#1878a8');
+  // dithered highlight
+  for(let dy=-3;dy<=3;dy++)for(let dx=-6;dx<=6;dx++){
+    if((dx+dy)%3===0 && dx*dx+dy*dy<40){o.fillStyle='#98d8f0';o.fillRect(wpx+dx,wpy+dy,1,1);}
+  }
+
+  // windmill
+  drawWindmill4(o, Math.round(LAYOUT.windmill.x*gw), Math.round(LAYOUT.windmill.y*gh), 12);
+
+  // cup + flag
+  drawCup4(o, Math.round(LAYOUT.cup.x*gw), Math.round(LAYOUT.cup.y*gh), 4);
+
+  // ball
+  const bx=Math.round(LAYOUT.tee.x*gw), by=Math.round(LAYOUT.tee.y*gh);
+  o.fillStyle='#000';for(let dy=-1;dy<=2;dy++)for(let dx=-1;dx<=2;dx++)if(dx*dx+dy*dy<=4)o.fillRect(bx+dx,by+dy,1,1);
+  o.fillStyle='#fff';for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++)if(dx*dx+dy*dy<=2)o.fillRect(bx+dx,by+dy,1,1);
+  o.fillStyle='#f8f8f8';o.fillRect(bx-1,by-1,1,1);
+
+  // aim (pixel arrow)
+  o.fillStyle='#f8d848';for(let i=1;i<=6;i++){o.fillRect(bx-i,by+Math.round(i*0.45),1,1);}
+
+  x.drawImage(off,0,0,W,H);
+
+  function drawPixelBlob(o,cx,cy,r,col,edge){
+    o.fillStyle=col;
+    for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
+      if(dx*dx+dy*dy<=r*r)o.fillRect(cx+dx,cy+dy,1,1);
+    }
+    o.fillStyle=edge;
+    for(let dy=-r-1;dy<=r+1;dy++)for(let dx=-r-1;dx<=r+1;dx++){
+      const d=dx*dx+dy*dy;if(d>r*r && d<=(r+1)*(r+1))o.fillRect(cx+dx,cy+dy,1,1);
+    }
+  }
+})();
+
+function drawWindmill4(o,cx,cy,size){
+  // shadow
+  o.fillStyle='#0004';
+  for(let dy=-3;dy<=3;dy++)for(let dx=-size/2;dx<=size/2;dx++){if(dx*dx/(size*size/4)+dy*dy/9<=1)o.fillRect(cx+dx+2,cy+size/2+dy,1,1);}
+  // hexagonal base
+  o.fillStyle='#c88838';
+  for(let dy=-size/2;dy<=size/2;dy++)for(let dx=-size/2;dx<=size/2;dx++){
+    if(dx*dx+dy*dy<=size*size/4)o.fillRect(cx+dx,cy+dy,1,1);
+  }
+  // outline
+  o.fillStyle='#602810';
+  for(let dy=-size/2-1;dy<=size/2+1;dy++)for(let dx=-size/2-1;dx<=size/2+1;dx++){
+    const d=dx*dx+dy*dy;if(d>size*size/4 && d<=(size/2+1)*(size/2+1))o.fillRect(cx+dx,cy+dy,1,1);
+  }
+  // door
+  o.fillStyle='#301808';for(let dy=0;dy<4;dy++)for(let dx=-1;dx<=1;dx++)o.fillRect(cx+dx,cy+1+dy,1,1);
+  // sails (cross)
+  o.fillStyle='#f0d888';
+  for(let i=-size+1;i<=size-1;i++){
+    if(Math.abs(i)>1){o.fillRect(cx+i,cy,1,1);o.fillRect(cx,cy+i,1,1);}
+  }
+  // widen blades at tips
+  o.fillStyle='#e0c070';
+  o.fillRect(cx+size-2,cy-1,2,3);o.fillRect(cx-size,cy-1,2,3);
+  o.fillRect(cx-1,cy+size-2,3,2);o.fillRect(cx-1,cy-size,3,2);
+  // hub
+  o.fillStyle='#000';o.fillRect(cx-1,cy-1,3,3);
+  o.fillStyle='#f8d848';o.fillRect(cx,cy,1,1);
+}
+function drawCup4(o,cx,cy,r){
+  // hole
+  o.fillStyle='#000';for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){if(dx*dx+dy*dy<=r*r)o.fillRect(cx+dx,cy+dy,1,1);}
+  // pole
+  o.fillStyle='#a8785a';for(let i=0;i<12;i++)o.fillRect(cx,cy-i-1,1,1);
+  // flag
+  o.fillStyle='#e83020';for(let i=0;i<4;i++){for(let j=0;j<=3-i;j++)o.fillRect(cx+1+j,cy-12+i,1,1);}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cosmic Links — Rigorous Top-Down Minigolf</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Cormorant+Garamond:ital,wght@0,500&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#f0e6d0;color:#2a2418;font-family:'Cormorant Garamond',serif;padding:24px;min-height:100vh}
+  h1{font-family:'Fredoka',sans-serif;font-weight:700;letter-spacing:2px;font-size:26px;text-align:center;color:#3a5c2a;margin-bottom:6px}
+  .intro{text-align:center;font-style:italic;color:#5a4a30;margin-bottom:22px;font-size:15px;max-width:760px;margin-left:auto;margin-right:auto}
+  .intro b{color:#8a3a1a}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:22px;max-width:1200px;margin:0 auto}
+  .panel{background:#fff;border:1px solid #c0b090;border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+  .panel canvas{width:100%;display:block;height:340px;background:#e8e0c8}
+  .caption{padding:12px 18px;border-top:1px solid #c0b090;background:#faf3e0}
+  .caption h3{font-family:'Fredoka',sans-serif;font-size:15px;letter-spacing:1px;color:#3a5c2a;margin-bottom:4px}
+  .caption p{font-size:13px;color:#5a4a30;line-height:1.4}
+</style>
+</head>
+<body>
+<h1>MINIGOLF — Hole 3: The Dogleg &amp; Windmill</h1>
+<div class="intro">
+Same <b>constructible geometry</b> in all four: rectangular course, wooden 2×6 perimeter walls, one interior wall creating an L-shape dogleg, rectangular pond and sand trap, windmill in the second chamber. Every wall is straight and at right angles — you could lay it out with real lumber. Only the aesthetic treatment changes.
+</div>
+<div class="grid">
+  <div class="panel"><canvas id="p1" width="600" height="400"></canvas><div class="caption"><h3>1 · Ravensburger Illustrated</h3><p>Painted textures, warm boardgame-page look. Playful, timeless, hand-crafted.</p></div></div>
+  <div class="panel"><canvas id="p2" width="600" height="400"></canvas><div class="caption"><h3>2 · Photo-Drone Realism</h3><p>Overhead of a real Putt-Putt: fine astroturf, wood-grain planks, water reflections.</p></div></div>
+  <div class="panel"><canvas id="p3" width="600" height="400"></canvas><div class="caption"><h3>3 · Nintendo Switch Cheerful</h3><p>Bright, saturated, clean rectangles with soft shadows. Phone/console friendly.</p></div></div>
+  <div class="panel"><canvas id="p4" width="600" height="400"></canvas><div class="caption"><h3>4 · Blueprint / Builder's Plan</h3><p>Muted architectural feel with dimension marks. Looks like a real construction spec.</p></div></div>
+</div>
+
+<script>
+/* ---------------- SHARED GEOMETRY ---------------- */
+/* All coordinates in the "hole" coordinate space (0..600 x, 0..400 y). */
+
+const HOLE = {
+  outer:      {x:20,  y:30,  w:560, h:340}, // outer wall bounding box
+  wallThick:  14,
+  // Interior wall creating an L-shape dogleg:
+  // one horizontal wall from the top-left area extending right, leaving a corridor at the bottom.
+  innerWall:  {x:20+14, y:180, w:350, h:14},   // horizontal wall
+  // Rectangular water pond (in the lower left chamber, in the way of a straight shot):
+  water:      {x:120, y:260, w:110, h:60},
+  // Rectangular sand trap (near the pond)
+  sand:       {x:250, y:280, w:80, h:55},
+  // Windmill in upper chamber
+  windmill:   {cx:440, cy:110, base:26, bladeR:52},
+  // Tee mat lower-left
+  tee:        {x:50,  y:325, w:50, h:26, ballCx:75, ballCy:338},
+  // Cup upper-right (top chamber)
+  cup:        {cx:540, cy:80, r:10},
+  // Aim indicator (pull-back from ball)
+  aim:        {fromCx:75, fromCy:338, toCx:35, toCy:355}
+};
+
+/* Utility drawing helpers used by all styles */
+function fillRect(x, o, style){ o.fillStyle=style; o.fillRect(x.x,x.y,x.w,x.h); }
+function strokeRect(r, o, style, lw){ o.strokeStyle=style; o.lineWidth=lw; o.strokeRect(r.x+lw/2, r.y+lw/2, r.w-lw, r.h-lw); }
+function innerRect(hole){ // returns the inside-of-outer-wall rect
+  const t=hole.wallThick; return {x:hole.outer.x+t, y:hole.outer.y+t, w:hole.outer.w-2*t, h:hole.outer.h-2*t};
+}
+
+/* ============================================================
+   1 · RAVENSBURGER ILLUSTRATED
+   ============================================================ */
+(function(){
+  const c=document.getElementById('p1'), x=c.getContext('2d');
+  const W=c.width, H=c.height;
+
+  // background: painted table (warm wood grain)
+  x.fillStyle='#c9a878';x.fillRect(0,0,W,H);
+  x.strokeStyle='rgba(140,100,60,0.35)';x.lineWidth=1;
+  for(let i=0;i<H;i+=3){x.beginPath();x.moveTo(0,i+Math.sin(i*0.1)*1.5);x.lineTo(W,i+Math.sin(i*0.1)*1.5);x.stroke();}
+  // painted knots
+  for(let i=0;i<4;i++){const cx=Math.random()*W,cy=Math.random()*H;const g=x.createRadialGradient(cx,cy,2,cx,cy,25);g.addColorStop(0,'rgba(100,60,20,0.4)');g.addColorStop(1,'rgba(100,60,20,0)');x.fillStyle=g;x.beginPath();x.arc(cx,cy,25,0,7);x.fill();}
+
+  const inner=innerRect(HOLE);
+
+  // green astroturf interior — painted with fibrous texture
+  const gg=x.createLinearGradient(inner.x,inner.y,inner.x,inner.y+inner.h);
+  gg.addColorStop(0,'#7fb867');gg.addColorStop(1,'#5a9a4a');
+  x.fillStyle=gg;x.fillRect(inner.x,inner.y,inner.w,inner.h);
+  // fibrous grass texture
+  for(let i=0;i<800;i++){
+    x.fillStyle='rgba('+(50+Math.random()*40)+','+(120+Math.random()*40)+','+(40+Math.random()*30)+',0.35)';
+    x.fillRect(inner.x+Math.random()*inner.w, inner.y+Math.random()*inner.h, 1, 2);
+  }
+
+  // wooden perimeter walls — painted planks with grain
+  drawPaintedPlank(x, HOLE.outer.x, HOLE.outer.y, HOLE.outer.w, HOLE.wallThick); // top
+  drawPaintedPlank(x, HOLE.outer.x, HOLE.outer.y+HOLE.outer.h-HOLE.wallThick, HOLE.outer.w, HOLE.wallThick); // bottom
+  drawPaintedPlank(x, HOLE.outer.x, HOLE.outer.y, HOLE.wallThick, HOLE.outer.h); // left
+  drawPaintedPlank(x, HOLE.outer.x+HOLE.outer.w-HOLE.wallThick, HOLE.outer.y, HOLE.wallThick, HOLE.outer.h); // right
+  // interior dogleg wall
+  drawPaintedPlank(x, HOLE.innerWall.x, HOLE.innerWall.y, HOLE.innerWall.w, HOLE.innerWall.h);
+
+  // water pond — painted blue with brick edging
+  drawPaintedPond(x, HOLE.water);
+  // sand — painted tan rectangle with grain
+  drawPaintedSand(x, HOLE.sand);
+
+  // windmill (top-down: circular base + rotating cross)
+  drawPaintedWindmill(x, HOLE.windmill);
+
+  // cup + flag
+  drawPaintedCup(x, HOLE.cup);
+
+  // tee mat + ball
+  drawPaintedTee(x, HOLE.tee);
+
+  // aim indicator (dashed line pulled back)
+  x.strokeStyle='rgba(200,60,50,0.75)';x.lineWidth=2;x.setLineDash([5,4]);
+  x.beginPath();x.moveTo(HOLE.aim.fromCx,HOLE.aim.fromCy);x.lineTo(HOLE.aim.toCx,HOLE.aim.toCy);x.stroke();x.setLineDash([]);
+  x.fillStyle='rgba(200,60,50,0.9)';x.beginPath();x.arc(HOLE.aim.toCx,HOLE.aim.toCy,3.5,0,7);x.fill();
+
+  function drawPaintedPlank(x,px,py,pw,ph){
+    x.save();
+    // shadow inside
+    x.fillStyle='rgba(0,0,0,0.20)';x.fillRect(px+2,py+2,pw,ph);
+    // plank base
+    const g=x.createLinearGradient(px,py,px,py+ph);
+    g.addColorStop(0,'#a87038');g.addColorStop(0.5,'#8a5828');g.addColorStop(1,'#5a3818');
+    x.fillStyle=g;x.fillRect(px,py,pw,ph);
+    // wood grain
+    x.strokeStyle='rgba(50,25,10,0.35)';x.lineWidth=0.8;
+    const isHoriz=pw>ph;
+    if(isHoriz){for(let i=2;i<ph;i+=3){x.beginPath();x.moveTo(px,py+i+Math.sin(px*0.05)*0.5);x.lineTo(px+pw,py+i+Math.sin(px*0.05+3)*0.5);x.stroke();}}
+    else{for(let i=2;i<pw;i+=3){x.beginPath();x.moveTo(px+i+Math.sin(py*0.05)*0.5,py);x.lineTo(px+i+Math.sin(py*0.05+3)*0.5,py+ph);x.stroke();}}
+    // plank divisions (every 60 units along the long axis)
+    x.strokeStyle='#2a1808';x.lineWidth=1;
+    if(isHoriz){for(let i=60;i<pw;i+=60){x.beginPath();x.moveTo(px+i,py);x.lineTo(px+i,py+ph);x.stroke();}}
+    else{for(let i=60;i<ph;i+=60){x.beginPath();x.moveTo(px,py+i);x.lineTo(px+pw,py+i);x.stroke();}}
+    // outline
+    x.strokeStyle='#2a1808';x.lineWidth=1.5;x.strokeRect(px+0.75,py+0.75,pw-1.5,ph-1.5);
+    x.restore();
+  }
+  function drawPaintedPond(x,r){
+    x.save();
+    // brick coping around the pond
+    x.fillStyle='#8a5228';x.fillRect(r.x-4,r.y-4,r.w+8,r.h+8);
+    x.strokeStyle='#2a1808';x.strokeRect(r.x-4,r.y-4,r.w+8,r.h+8);
+    // painted water
+    const g=x.createLinearGradient(r.x,r.y,r.x,r.y+r.h);
+    g.addColorStop(0,'#a8d8e0');g.addColorStop(0.5,'#78b4c8');g.addColorStop(1,'#4a8ba8');
+    x.fillStyle=g;x.fillRect(r.x,r.y,r.w,r.h);
+    // ripples
+    x.strokeStyle='rgba(255,255,255,0.6)';x.lineWidth=1.2;
+    for(let i=0;i<4;i++){x.beginPath();x.ellipse(r.x+r.w*0.5,r.y+r.h*0.5,r.w*0.35-i*8,r.h*0.15-i*3,0,0,Math.PI);x.stroke();}
+    x.restore();
+  }
+  function drawPaintedSand(x,r){
+    x.save();
+    // brick coping
+    x.fillStyle='#8a5228';x.fillRect(r.x-3,r.y-3,r.w+6,r.h+6);
+    x.strokeStyle='#2a1808';x.strokeRect(r.x-3,r.y-3,r.w+6,r.h+6);
+    // painted sand
+    const g=x.createLinearGradient(r.x,r.y,r.x,r.y+r.h);
+    g.addColorStop(0,'#f0dea2');g.addColorStop(1,'#d8b878');
+    x.fillStyle=g;x.fillRect(r.x,r.y,r.w,r.h);
+    for(let i=0;i<40;i++){x.fillStyle='rgba(150,110,50,0.4)';x.fillRect(r.x+Math.random()*r.w, r.y+Math.random()*r.h, 1.2, 1.2);}
+    x.restore();
+  }
+  function drawPaintedWindmill(x,w){
+    x.save();
+    // shadow of blades
+    x.fillStyle='rgba(0,0,0,0.25)';
+    x.save();x.translate(w.cx+3,w.cy+4);
+    for(let a=0;a<4;a++){x.rotate(Math.PI/2);x.fillRect(0,-4,w.bladeR,8);}
+    x.restore();
+    // painted stone base
+    const bg=x.createRadialGradient(w.cx-5,w.cy-5,3,w.cx,w.cy,w.base);
+    bg.addColorStop(0,'#c8b090');bg.addColorStop(0.6,'#987848');bg.addColorStop(1,'#5a4028');
+    x.fillStyle=bg;x.beginPath();x.arc(w.cx,w.cy,w.base,0,7);x.fill();
+    x.strokeStyle='#3a2818';x.lineWidth=2;x.stroke();
+    // brick pattern on base (radial hint)
+    x.strokeStyle='rgba(60,40,20,0.4)';x.lineWidth=1;
+    for(let a=0;a<8;a++){x.beginPath();x.moveTo(w.cx,w.cy);x.lineTo(w.cx+Math.cos(a/8*Math.PI*2)*w.base,w.cy+Math.sin(a/8*Math.PI*2)*w.base);x.stroke();}
+    // blades — painted wood
+    x.save();x.translate(w.cx,w.cy);
+    for(let a=0;a<4;a++){
+      x.rotate(Math.PI/2);
+      const bg2=x.createLinearGradient(0,-4,w.bladeR,4);
+      bg2.addColorStop(0,'#e8d8b0');bg2.addColorStop(1,'#a88860');
+      x.fillStyle=bg2;
+      x.fillRect(0,-4,w.bladeR,8);
+      x.strokeStyle='#4a3020';x.lineWidth=1.2;x.strokeRect(0,-4,w.bladeR,8);
+      // rivets
+      x.fillStyle='#3a2818';x.beginPath();x.arc(w.bladeR-6,-4,1.2,0,7);x.fill();x.beginPath();x.arc(w.bladeR-6,4,1.2,0,7);x.fill();
+    }
+    x.restore();
+    // hub
+    x.fillStyle='#2a1808';x.beginPath();x.arc(w.cx,w.cy,7,0,7);x.fill();
+    x.fillStyle='#d8a848';x.beginPath();x.arc(w.cx,w.cy,3,0,7);x.fill();
+    x.restore();
+  }
+  function drawPaintedCup(x,cup){
+    x.save();
+    // painted grass ring
+    x.fillStyle='#4a8a40';x.beginPath();x.arc(cup.cx,cup.cy,cup.r+8,0,7);x.fill();
+    // cup hole
+    x.fillStyle='#000';x.beginPath();x.arc(cup.cx,cup.cy,cup.r,0,7);x.fill();
+    x.strokeStyle='#2a1808';x.lineWidth=1.5;x.stroke();
+    // flag pole (thin painted stick)
+    x.strokeStyle='#c0a878';x.lineWidth=2.5;x.beginPath();x.moveTo(cup.cx,cup.cy);x.lineTo(cup.cx+22,cup.cy-30);x.stroke();
+    x.strokeStyle='#5a3818';x.lineWidth=1;x.beginPath();x.moveTo(cup.cx,cup.cy);x.lineTo(cup.cx+22,cup.cy-30);x.stroke();
+    // flag (painted red triangle)
+    x.fillStyle='#c04a3a';x.beginPath();x.moveTo(cup.cx+22,cup.cy-30);x.lineTo(cup.cx+44,cup.cy-24);x.lineTo(cup.cx+26,cup.cy-16);x.closePath();x.fill();
+    x.strokeStyle='#7a2010';x.lineWidth=1;x.stroke();
+    x.restore();
+  }
+  function drawPaintedTee(x,t){
+    x.save();
+    // tee mat — small rectangle of darker green with painted texture
+    x.fillStyle='#4a7838';x.fillRect(t.x,t.y,t.w,t.h);
+    x.strokeStyle='#2a4818';x.lineWidth=1.5;x.strokeRect(t.x+0.5,t.y+0.5,t.w-1,t.h-1);
+    // painted dots (astroturf)
+    for(let i=0;i<24;i++){x.fillStyle='rgba(90,150,70,0.5)';x.fillRect(t.x+Math.random()*t.w, t.y+Math.random()*t.h, 1.5, 1.5);}
+    // TEE label
+    x.fillStyle='#e8d8b0';x.font='bold 9px Fredoka';x.textAlign='center';x.textBaseline='middle';x.fillText('TEE 3', t.x+t.w/2, t.y+t.h/2);
+    // ball
+    x.fillStyle='rgba(0,0,0,0.35)';x.beginPath();x.ellipse(t.ballCx+2,t.ballCy+3,8,3,0,0,7);x.fill();
+    const g=x.createRadialGradient(t.ballCx-2,t.ballCy-2,1,t.ballCx,t.ballCy,9);
+    g.addColorStop(0,'#fff');g.addColorStop(0.6,'#e8e0d0');g.addColorStop(1,'#8a8478');
+    x.fillStyle=g;x.beginPath();x.arc(t.ballCx,t.ballCy,8,0,7);x.fill();
+    x.restore();
+  }
+})();
+
+/* ============================================================
+   2 · PHOTO-DRONE REALISM
+   ============================================================ */
+(function(){
+  const c=document.getElementById('p2'), x=c.getContext('2d');
+  const W=c.width, H=c.height;
+  // outer background: concrete slab
+  x.fillStyle='#b8b0a4';x.fillRect(0,0,W,H);
+  // aggregate dots
+  for(let i=0;i<800;i++){x.fillStyle='rgba('+(100+Math.random()*70)+','+(100+Math.random()*70)+','+(90+Math.random()*60)+',0.5)';x.fillRect(Math.random()*W,Math.random()*H,1.5,1.5);}
+  // expansion joints
+  x.strokeStyle='rgba(0,0,0,0.25)';x.lineWidth=1;
+  for(let y=0;y<H;y+=80){x.beginPath();x.moveTo(0,y);x.lineTo(W,y);x.stroke();}
+  for(let xp=0;xp<W;xp+=80){x.beginPath();x.moveTo(xp,0);x.lineTo(xp,H);x.stroke();}
+
+  const inner=innerRect(HOLE);
+  // realistic astroturf — dense stipple
+  const gg=x.createLinearGradient(inner.x,inner.y,inner.x+inner.w,inner.y+inner.h);
+  gg.addColorStop(0,'#5a8a3a');gg.addColorStop(1,'#3f6a2a');
+  x.fillStyle=gg;x.fillRect(inner.x,inner.y,inner.w,inner.h);
+  for(let i=0;i<3500;i++){
+    x.fillStyle='rgba('+(30+Math.random()*30)+','+(90+Math.random()*40)+','+(20+Math.random()*30)+','+(0.35+Math.random()*0.4)+')';
+    x.fillRect(inner.x+Math.random()*inner.w, inner.y+Math.random()*inner.h, 1, 1);
+  }
+  // subtle mowing stripes
+  x.fillStyle='rgba(0,0,0,0.06)';
+  for(let i=0;i<inner.w;i+=30){x.fillRect(inner.x+i,inner.y,15,inner.h);}
+
+  // wooden walls — photographic wood grain
+  drawWoodWall(x, HOLE.outer.x, HOLE.outer.y, HOLE.outer.w, HOLE.wallThick);
+  drawWoodWall(x, HOLE.outer.x, HOLE.outer.y+HOLE.outer.h-HOLE.wallThick, HOLE.outer.w, HOLE.wallThick);
+  drawWoodWall(x, HOLE.outer.x, HOLE.outer.y, HOLE.wallThick, HOLE.outer.h);
+  drawWoodWall(x, HOLE.outer.x+HOLE.outer.w-HOLE.wallThick, HOLE.outer.y, HOLE.wallThick, HOLE.outer.h);
+  drawWoodWall(x, HOLE.innerWall.x, HOLE.innerWall.y, HOLE.innerWall.w, HOLE.innerWall.h);
+
+  // water — realistic reflective pond
+  const wr=HOLE.water;
+  x.fillStyle='#1a2a3a';x.fillRect(wr.x-4,wr.y-4,wr.w+8,wr.h+8); // dark border
+  const wg=x.createLinearGradient(wr.x,wr.y,wr.x,wr.y+wr.h);
+  wg.addColorStop(0,'#2a5878');wg.addColorStop(0.5,'#3a78a0');wg.addColorStop(1,'#1a4868');
+  x.fillStyle=wg;x.fillRect(wr.x,wr.y,wr.w,wr.h);
+  // ripples
+  x.strokeStyle='rgba(200,220,240,0.4)';x.lineWidth=0.8;
+  for(let i=0;i<8;i++){const yy=wr.y+i*(wr.h/8);x.beginPath();for(let xx=0;xx<=wr.w;xx+=4){x.lineTo(wr.x+xx, yy+Math.sin(xx*0.15+i)*1.2);}x.stroke();}
+  // specular highlight
+  x.fillStyle='rgba(255,255,255,0.25)';x.fillRect(wr.x+8,wr.y+6,25,4);
+  x.fillRect(wr.x+45,wr.y+18,15,3);
+
+  // sand — realistic bunker
+  const sr=HOLE.sand;
+  x.fillStyle='#4a2818';x.fillRect(sr.x-3,sr.y-3,sr.w+6,sr.h+6);
+  const sg=x.createLinearGradient(sr.x,sr.y,sr.x,sr.y+sr.h);
+  sg.addColorStop(0,'#f4e0a0');sg.addColorStop(1,'#d0b070');
+  x.fillStyle=sg;x.fillRect(sr.x,sr.y,sr.w,sr.h);
+  for(let i=0;i<200;i++){x.fillStyle='rgba('+(180+Math.random()*40)+','+(140+Math.random()*30)+','+(80+Math.random()*30)+',0.5)';x.fillRect(sr.x+Math.random()*sr.w, sr.y+Math.random()*sr.h, 1, 1);}
+  // rake marks
+  x.strokeStyle='rgba(200,160,90,0.6)';x.lineWidth=0.8;
+  for(let i=0;i<6;i++){x.beginPath();x.moveTo(sr.x, sr.y+i*(sr.h/6));x.lineTo(sr.x+sr.w, sr.y+i*(sr.h/6)+2);x.stroke();}
+
+  // windmill — realistic wood + metal
+  drawRealisticWindmill(x, HOLE.windmill);
+
+  // cup + flag
+  drawRealisticCup(x, HOLE.cup);
+
+  // tee + ball
+  drawRealisticTee(x, HOLE.tee);
+
+  // aim
+  x.strokeStyle='rgba(255,255,255,0.75)';x.lineWidth=1.5;x.setLineDash([4,3]);
+  x.beginPath();x.moveTo(HOLE.aim.fromCx,HOLE.aim.fromCy);x.lineTo(HOLE.aim.toCx,HOLE.aim.toCy);x.stroke();x.setLineDash([]);
+
+  function drawWoodWall(x,px,py,pw,ph){
+    // deep shadow cast into the course
+    x.fillStyle='rgba(0,0,0,0.45)';
+    if(pw>ph){x.fillRect(px, py+ph, pw, 4);x.fillRect(px-3, py, 3, ph);}
+    else{x.fillRect(px+pw, py, 4, ph);x.fillRect(px, py+ph, pw, 3);}
+    // plank base
+    x.fillStyle='#8a5a28';x.fillRect(px,py,pw,ph);
+    // wood grain
+    const isHoriz=pw>ph;
+    x.strokeStyle='rgba(40,20,10,0.5)';x.lineWidth=0.6;
+    if(isHoriz){for(let i=1;i<ph;i+=2){x.beginPath();for(let xx=0;xx<=pw;xx+=8){x.lineTo(px+xx, py+i+Math.sin(xx*0.08+i)*0.4);}x.stroke();}}
+    else{for(let i=1;i<pw;i+=2){x.beginPath();for(let yy=0;yy<=ph;yy+=8){x.lineTo(px+i+Math.sin(yy*0.08+i)*0.4, py+yy);}x.stroke();}}
+    // plank divisions
+    x.strokeStyle='#2a1808';x.lineWidth=1.2;
+    if(isHoriz){for(let i=80;i<pw;i+=80){x.beginPath();x.moveTo(px+i,py);x.lineTo(px+i,py+ph);x.stroke();}}
+    else{for(let i=80;i<ph;i+=80){x.beginPath();x.moveTo(px,py+i);x.lineTo(px+pw,py+i);x.stroke();}}
+    // outer edge highlight
+    x.strokeStyle='rgba(220,180,120,0.4)';x.lineWidth=0.8;
+    x.strokeRect(px+0.4,py+0.4,pw-0.8,ph-0.8);
+  }
+  function drawRealisticWindmill(x,w){
+    x.save();
+    // blade shadow
+    x.fillStyle='rgba(0,0,0,0.45)';
+    x.save();x.translate(w.cx+4,w.cy+5);
+    for(let a=0;a<4;a++){x.rotate(Math.PI/2);x.fillRect(0,-5,w.bladeR,10);}
+    x.restore();
+    // stone base with realistic gradient
+    const g=x.createRadialGradient(w.cx-8,w.cy-8,4,w.cx,w.cy,w.base);
+    g.addColorStop(0,'#e0d0b0');g.addColorStop(0.5,'#a88858');g.addColorStop(1,'#503820');
+    x.fillStyle=g;x.beginPath();x.arc(w.cx,w.cy,w.base,0,7);x.fill();
+    // brick lines
+    x.strokeStyle='rgba(30,20,10,0.5)';x.lineWidth=0.8;
+    for(let a=0;a<12;a++){x.beginPath();x.moveTo(w.cx,w.cy);x.lineTo(w.cx+Math.cos(a/12*Math.PI*2)*w.base,w.cy+Math.sin(a/12*Math.PI*2)*w.base);x.stroke();}
+    for(let r=w.base*0.4;r<w.base;r+=6){x.beginPath();x.arc(w.cx,w.cy,r,0,7);x.stroke();}
+    x.strokeStyle='#2a1808';x.lineWidth=1.5;x.beginPath();x.arc(w.cx,w.cy,w.base,0,7);x.stroke();
+    // blades — realistic wood
+    x.save();x.translate(w.cx,w.cy);
+    for(let a=0;a<4;a++){
+      x.rotate(Math.PI/2);
+      const bg=x.createLinearGradient(0,-5,0,5);
+      bg.addColorStop(0,'#c8a878');bg.addColorStop(0.5,'#a88858');bg.addColorStop(1,'#6a4020');
+      x.fillStyle=bg;x.fillRect(0,-5,w.bladeR,10);
+      x.strokeStyle='rgba(30,15,5,0.6)';x.lineWidth=0.6;
+      for(let i=0;i<w.bladeR;i+=4){x.beginPath();x.moveTo(i,-5);x.lineTo(i,5);x.stroke();}
+      x.strokeStyle='#2a1808';x.lineWidth=1;x.strokeRect(0,-5,w.bladeR,10);
+    }
+    x.restore();
+    // metal hub
+    const hg=x.createRadialGradient(w.cx-2,w.cy-2,1,w.cx,w.cy,8);
+    hg.addColorStop(0,'#d0d0d0');hg.addColorStop(0.6,'#808080');hg.addColorStop(1,'#303030');
+    x.fillStyle=hg;x.beginPath();x.arc(w.cx,w.cy,8,0,7);x.fill();
+    x.strokeStyle='#000';x.stroke();
+    x.restore();
+  }
+  function drawRealisticCup(x,cup){
+    x.save();
+    // slight lighter ring on grass
+    x.fillStyle='rgba(30,60,20,0.35)';x.beginPath();x.arc(cup.cx,cup.cy,cup.r+3,0,7);x.fill();
+    // deep cup hole
+    x.fillStyle='#000';x.beginPath();x.arc(cup.cx,cup.cy,cup.r,0,7);x.fill();
+    // inner rim highlight
+    x.strokeStyle='rgba(80,80,80,0.6)';x.lineWidth=1;x.beginPath();x.arc(cup.cx,cup.cy,cup.r-1,0,7);x.stroke();
+    // flag pole
+    x.strokeStyle='#c8b088';x.lineWidth=1.8;x.beginPath();x.moveTo(cup.cx,cup.cy);x.lineTo(cup.cx+24,cup.cy-32);x.stroke();
+    x.strokeStyle='#3a2818';x.lineWidth=0.8;x.beginPath();x.moveTo(cup.cx,cup.cy);x.lineTo(cup.cx+24,cup.cy-32);x.stroke();
+    // flag with slight ripple
+    x.fillStyle='#c8382a';x.beginPath();x.moveTo(cup.cx+24,cup.cy-32);x.lineTo(cup.cx+46,cup.cy-26);x.lineTo(cup.cx+28,cup.cy-18);x.closePath();x.fill();
+    x.strokeStyle='#701a10';x.lineWidth=0.8;x.stroke();
+    // number on flag
+    x.fillStyle='#fff';x.font='bold 9px IBM Plex Mono';x.textAlign='center';x.textBaseline='middle';x.fillText('3', cup.cx+34, cup.cy-24);
+    x.restore();
+  }
+  function drawRealisticTee(x,t){
+    x.save();
+    // rubber tee mat
+    x.fillStyle='#2a2a2a';x.fillRect(t.x,t.y,t.w,t.h);
+    x.strokeStyle='#000';x.lineWidth=1;x.strokeRect(t.x+0.5,t.y+0.5,t.w-1,t.h-1);
+    x.fillStyle='#3a3a3a';for(let i=0;i<12;i++){x.fillRect(t.x+2+Math.random()*(t.w-4), t.y+2+Math.random()*(t.h-4), 1.5, 1.5);}
+    x.fillStyle='#e8c848';x.font='bold 9px IBM Plex Mono';x.textAlign='center';x.textBaseline='middle';x.fillText('TEE 3', t.x+t.w/2, t.y+t.h/2);
+    // ball
+    x.fillStyle='rgba(0,0,0,0.55)';x.beginPath();x.ellipse(t.ballCx+2,t.ballCy+3,7,2.5,0,0,7);x.fill();
+    const g=x.createRadialGradient(t.ballCx-2,t.ballCy-2,0.5,t.ballCx,t.ballCy,8);
+    g.addColorStop(0,'#fff');g.addColorStop(0.7,'#d0c8b8');g.addColorStop(1,'#605850');
+    x.fillStyle=g;x.beginPath();x.arc(t.ballCx,t.ballCy,7.5,0,7);x.fill();
+    // dimples
+    x.fillStyle='rgba(80,70,60,0.4)';
+    for(let i=0;i<8;i++){const a=i/8*Math.PI*2;x.beginPath();x.arc(t.ballCx+Math.cos(a)*4,t.ballCy+Math.sin(a)*4,0.6,0,7);x.fill();}
+    x.restore();
+  }
+})();
+
+/* ============================================================
+   3 · NINTENDO SWITCH CHEERFUL
+   ============================================================ */
+(function(){
+  const c=document.getElementById('p3'), x=c.getContext('2d');
+  const W=c.width, H=c.height;
+  // bright cheerful bg
+  const bg=x.createLinearGradient(0,0,W,H);
+  bg.addColorStop(0,'#a8e0f0');bg.addColorStop(1,'#88c8e0');
+  x.fillStyle=bg;x.fillRect(0,0,W,H);
+  // cheerful clouds
+  x.fillStyle='rgba(255,255,255,0.55)';
+  for(let i=0;i<5;i++){const cx=Math.random()*W,cy=Math.random()*H*0.4;x.beginPath();x.arc(cx,cy,20+Math.random()*15,0,7);x.arc(cx+18,cy+2,16,0,7);x.arc(cx-18,cy+2,16,0,7);x.fill();}
+
+  const inner=innerRect(HOLE);
+  // clean flat astroturf with big soft shadow
+  x.fillStyle='rgba(0,0,0,0.25)';x.fillRect(inner.x+4,inner.y+6,inner.w,inner.h);
+  x.fillStyle='#7ec868';x.fillRect(inner.x,inner.y,inner.w,inner.h);
+  // inner glow
+  x.strokeStyle='rgba(255,255,255,0.35)';x.lineWidth=2;x.strokeRect(inner.x+2,inner.y+2,inner.w-4,inner.h-4);
+
+  // clean bright wooden walls
+  drawCheerfulWall(x, HOLE.outer.x, HOLE.outer.y, HOLE.outer.w, HOLE.wallThick);
+  drawCheerfulWall(x, HOLE.outer.x, HOLE.outer.y+HOLE.outer.h-HOLE.wallThick, HOLE.outer.w, HOLE.wallThick);
+  drawCheerfulWall(x, HOLE.outer.x, HOLE.outer.y, HOLE.wallThick, HOLE.outer.h);
+  drawCheerfulWall(x, HOLE.outer.x+HOLE.outer.w-HOLE.wallThick, HOLE.outer.y, HOLE.wallThick, HOLE.outer.h);
+  drawCheerfulWall(x, HOLE.innerWall.x, HOLE.innerWall.y, HOLE.innerWall.w, HOLE.innerWall.h);
+
+  // water — bright teal
+  const wr=HOLE.water;
+  x.fillStyle='rgba(0,0,0,0.30)';x.fillRect(wr.x+3,wr.y+4,wr.w,wr.h);
+  x.fillStyle='#4ac0e8';x.fillRect(wr.x,wr.y,wr.w,wr.h);
+  x.strokeStyle='#1a80a8';x.lineWidth=2;x.strokeRect(wr.x+1,wr.y+1,wr.w-2,wr.h-2);
+  // inner sheen
+  x.fillStyle='rgba(255,255,255,0.5)';x.fillRect(wr.x+8,wr.y+6,25,4);
+
+  // sand — bright yellow
+  const sr=HOLE.sand;
+  x.fillStyle='rgba(0,0,0,0.25)';x.fillRect(sr.x+2,sr.y+3,sr.w,sr.h);
+  x.fillStyle='#f8d868';x.fillRect(sr.x,sr.y,sr.w,sr.h);
+  x.strokeStyle='#c88828';x.lineWidth=2;x.strokeRect(sr.x+1,sr.y+1,sr.w-2,sr.h-2);
+  x.fillStyle='rgba(200,140,50,0.6)';for(let i=0;i<15;i++)x.fillRect(sr.x+Math.random()*sr.w, sr.y+Math.random()*sr.h, 2, 2);
+
+  // windmill — bright cheerful
+  drawCheerfulWindmill(x, HOLE.windmill);
+
+  drawCheerfulCup(x, HOLE.cup);
+  drawCheerfulTee(x, HOLE.tee);
+
+  // aim trajectory dots
+  x.fillStyle='#f8e848';
+  for(let t=1;t<=5;t++){const px=HOLE.aim.fromCx-(HOLE.aim.fromCx-HOLE.aim.toCx)*t/6, py=HOLE.aim.fromCy-(HOLE.aim.fromCy-HOLE.aim.toCy)*t/6;
+    x.beginPath();x.arc(px,py,2.5,0,7);x.fill();}
+
+  function drawCheerfulWall(x,px,py,pw,ph){
+    // shadow
+    x.fillStyle='rgba(0,0,0,0.25)';x.fillRect(px+3,py+4,pw,ph);
+    // solid wood — bright warm brown, clean
+    x.fillStyle='#c88a48';x.fillRect(px,py,pw,ph);
+    // top highlight
+    x.fillStyle='#e8b078';x.fillRect(px,py,pw,2);
+    if(pw<ph)x.fillRect(px,py,2,ph);
+    // outline
+    x.strokeStyle='#6a3808';x.lineWidth=1.5;x.strokeRect(px+0.75,py+0.75,pw-1.5,ph-1.5);
+  }
+  function drawCheerfulWindmill(x,w){
+    x.save();
+    x.fillStyle='rgba(0,0,0,0.30)';
+    x.save();x.translate(w.cx+4,w.cy+5);for(let a=0;a<4;a++){x.rotate(Math.PI/2);x.fillRect(0,-6,w.bladeR,12);}x.restore();
+    // bright red base
+    x.fillStyle='#e04a3a';x.beginPath();x.arc(w.cx,w.cy,w.base,0,7);x.fill();
+    x.strokeStyle='#8a1010';x.lineWidth=2.5;x.stroke();
+    // white stripe pattern (like a real windmill top)
+    x.fillStyle='#fff';for(let a=0;a<4;a++){x.save();x.translate(w.cx,w.cy);x.rotate(a*Math.PI/2 + Math.PI/4);x.fillRect(-3,-w.base+2,6,w.base-6);x.restore();}
+    // blades — bright white with red tips
+    x.save();x.translate(w.cx,w.cy);
+    for(let a=0;a<4;a++){
+      x.rotate(Math.PI/2);
+      x.fillStyle='#fff';x.fillRect(0,-6,w.bladeR,12);
+      x.fillStyle='#e04a3a';x.fillRect(w.bladeR-14,-6,14,12);
+      x.strokeStyle='#6a1808';x.lineWidth=1.5;x.strokeRect(0,-6,w.bladeR,12);
+    }
+    x.restore();
+    // hub — yellow
+    x.fillStyle='#f8d848';x.beginPath();x.arc(w.cx,w.cy,7,0,7);x.fill();
+    x.strokeStyle='#8a5010';x.lineWidth=1.5;x.stroke();
+    x.restore();
+  }
+  function drawCheerfulCup(x,cup){
+    x.save();
+    x.fillStyle='rgba(0,0,0,0.4)';x.beginPath();x.arc(cup.cx+2,cup.cy+3,cup.r+2,0,7);x.fill();
+    x.fillStyle='#1a2a10';x.beginPath();x.arc(cup.cx,cup.cy,cup.r,0,7);x.fill();
+    x.strokeStyle='#000';x.lineWidth=2;x.stroke();
+    // flag pole (cheerful bright)
+    x.strokeStyle='#f8e8a8';x.lineWidth=3;x.beginPath();x.moveTo(cup.cx,cup.cy);x.lineTo(cup.cx+22,cup.cy-32);x.stroke();
+    x.strokeStyle='#a88030';x.lineWidth=1.5;x.beginPath();x.moveTo(cup.cx,cup.cy);x.lineTo(cup.cx+22,cup.cy-32);x.stroke();
+    // flag — bright red
+    x.fillStyle='#ff5a4a';x.beginPath();x.moveTo(cup.cx+22,cup.cy-32);x.lineTo(cup.cx+46,cup.cy-26);x.lineTo(cup.cx+26,cup.cy-16);x.closePath();x.fill();
+    x.strokeStyle='#8a1010';x.lineWidth=1.5;x.stroke();
+    x.fillStyle='#fff';x.font='bold 10px Fredoka';x.textAlign='center';x.textBaseline='middle';x.fillText('3',cup.cx+33,cup.cy-24);
+    x.restore();
+  }
+  function drawCheerfulTee(x,t){
+    x.save();
+    // bright green tee mat
+    x.fillStyle='rgba(0,0,0,0.25)';x.fillRect(t.x+2,t.y+3,t.w,t.h);
+    x.fillStyle='#5aa848';x.fillRect(t.x,t.y,t.w,t.h);
+    x.strokeStyle='#2a5810';x.lineWidth=2;x.strokeRect(t.x+1,t.y+1,t.w-2,t.h-2);
+    x.fillStyle='#fff';x.font='bold 10px Fredoka';x.textAlign='center';x.textBaseline='middle';x.fillText('TEE 3', t.x+t.w/2, t.y+t.h/2);
+    // ball with big cheerful highlight
+    x.fillStyle='rgba(0,0,0,0.4)';x.beginPath();x.ellipse(t.ballCx+2,t.ballCy+3,9,3,0,0,7);x.fill();
+    x.fillStyle='#fff';x.beginPath();x.arc(t.ballCx,t.ballCy,10,0,7);x.fill();
+    x.strokeStyle='#8a8878';x.lineWidth=1.5;x.stroke();
+    x.fillStyle='rgba(255,255,255,0.95)';x.beginPath();x.arc(t.ballCx-3,t.ballCy-3,3,0,7);x.fill();
+    x.restore();
+  }
+})();
+
+/* ============================================================
+   4 · BLUEPRINT / BUILDER'S PLAN
+   ============================================================ */
+(function(){
+  const c=document.getElementById('p4'), x=c.getContext('2d');
+  const W=c.width, H=c.height;
+  // paper background
+  x.fillStyle='#e8ded0';x.fillRect(0,0,W,H);
+  // subtle grid
+  x.strokeStyle='rgba(100,80,50,0.15)';x.lineWidth=0.5;
+  for(let i=0;i<W;i+=20){x.beginPath();x.moveTo(i,0);x.lineTo(i,H);x.stroke();}
+  for(let i=0;i<H;i+=20){x.beginPath();x.moveTo(0,i);x.lineTo(W,i);x.stroke();}
+
+  const inner=innerRect(HOLE);
+  // astroturf — muted olive with hatch fill
+  x.fillStyle='#a8b880';x.fillRect(inner.x,inner.y,inner.w,inner.h);
+  x.strokeStyle='rgba(100,120,60,0.35)';x.lineWidth=0.5;
+  for(let i=-inner.h;i<inner.w;i+=8){x.beginPath();x.moveTo(inner.x+i,inner.y);x.lineTo(inner.x+i+inner.h,inner.y+inner.h);x.stroke();}
+  x.strokeStyle='#5a7828';x.lineWidth=1.5;x.strokeRect(inner.x+0.75,inner.y+0.75,inner.w-1.5,inner.h-1.5);
+  // label
+  x.fillStyle='#3a5a1a';x.font='bold 9px IBM Plex Mono';x.fillText('ASTROTURF — 8mm', inner.x+8, inner.y+16);
+
+  // wooden walls — schematic (dark brown with hatch)
+  drawSchemWall(x, HOLE.outer.x, HOLE.outer.y, HOLE.outer.w, HOLE.wallThick);
+  drawSchemWall(x, HOLE.outer.x, HOLE.outer.y+HOLE.outer.h-HOLE.wallThick, HOLE.outer.w, HOLE.wallThick);
+  drawSchemWall(x, HOLE.outer.x, HOLE.outer.y, HOLE.wallThick, HOLE.outer.h);
+  drawSchemWall(x, HOLE.outer.x+HOLE.outer.w-HOLE.wallThick, HOLE.outer.y, HOLE.wallThick, HOLE.outer.h);
+  drawSchemWall(x, HOLE.innerWall.x, HOLE.innerWall.y, HOLE.innerWall.w, HOLE.innerWall.h);
+
+  // dimension markers on outer walls
+  x.strokeStyle='#8a3a1a';x.lineWidth=1;x.fillStyle='#8a3a1a';x.font='bold 10px IBM Plex Mono';
+  // top dimension
+  x.beginPath();x.moveTo(HOLE.outer.x, HOLE.outer.y-14);x.lineTo(HOLE.outer.x+HOLE.outer.w, HOLE.outer.y-14);x.stroke();
+  x.beginPath();x.moveTo(HOLE.outer.x, HOLE.outer.y-10);x.lineTo(HOLE.outer.x, HOLE.outer.y-18);x.stroke();
+  x.beginPath();x.moveTo(HOLE.outer.x+HOLE.outer.w, HOLE.outer.y-10);x.lineTo(HOLE.outer.x+HOLE.outer.w, HOLE.outer.y-18);x.stroke();
+  x.textAlign='center';x.fillText('7200 mm', HOLE.outer.x+HOLE.outer.w/2, HOLE.outer.y-4);
+  // right dimension
+  x.save();x.translate(HOLE.outer.x+HOLE.outer.w+22, HOLE.outer.y+HOLE.outer.h/2);x.rotate(Math.PI/2);
+  x.fillText('4400 mm',0,0);x.restore();
+  x.beginPath();x.moveTo(HOLE.outer.x+HOLE.outer.w+14, HOLE.outer.y);x.lineTo(HOLE.outer.x+HOLE.outer.w+14, HOLE.outer.y+HOLE.outer.h);x.stroke();
+
+  // water — pond schematic
+  const wr=HOLE.water;
+  x.fillStyle='#7ea8c0';x.fillRect(wr.x,wr.y,wr.w,wr.h);
+  x.strokeStyle='#2a4868';x.lineWidth=1.5;x.strokeRect(wr.x+0.75,wr.y+0.75,wr.w-1.5,wr.h-1.5);
+  // wave symbols
+  x.strokeStyle='rgba(30,60,80,0.6)';x.lineWidth=1;
+  for(let i=0;i<3;i++){x.beginPath();for(let xx=0;xx<=wr.w;xx+=6){x.lineTo(wr.x+xx, wr.y+15+i*15+Math.sin(xx*0.2)*2);}x.stroke();}
+  x.fillStyle='#2a4868';x.font='bold 9px IBM Plex Mono';x.textAlign='left';x.fillText('WATER HAZARD',wr.x+4,wr.y+10);
+
+  // sand — hatched
+  const sr=HOLE.sand;
+  x.fillStyle='#e8d8a0';x.fillRect(sr.x,sr.y,sr.w,sr.h);
+  x.strokeStyle='#8a6820';x.lineWidth=1.5;x.strokeRect(sr.x+0.75,sr.y+0.75,sr.w-1.5,sr.h-1.5);
+  // dots
+  x.fillStyle='rgba(120,80,20,0.55)';
+  for(let py=0;py<sr.h;py+=5)for(let px=0;px<sr.w;px+=5){if((px+py)%10===0)x.beginPath(),x.arc(sr.x+px+2,sr.y+py+2,1.2,0,7),x.fill();}
+  x.fillStyle='#8a6820';x.font='bold 9px IBM Plex Mono';x.fillText('SAND',sr.x+4,sr.y+10);
+
+  // windmill — technical drawing
+  drawSchemWindmill(x, HOLE.windmill);
+
+  // cup + flag schematic
+  drawSchemCup(x, HOLE.cup);
+
+  // tee schematic
+  drawSchemTee(x, HOLE.tee);
+
+  // aim
+  x.strokeStyle='#8a3a1a';x.lineWidth=1.5;x.setLineDash([4,3]);
+  x.beginPath();x.moveTo(HOLE.aim.fromCx,HOLE.aim.fromCy);x.lineTo(HOLE.aim.toCx,HOLE.aim.toCy);x.stroke();x.setLineDash([]);
+  x.fillStyle='#8a3a1a';x.beginPath();x.arc(HOLE.aim.toCx,HOLE.aim.toCy,3,0,7);x.fill();
+
+  // title block corner
+  x.fillStyle='rgba(90,60,20,0.15)';x.fillRect(W-160,H-40,150,30);
+  x.strokeStyle='#5a3818';x.lineWidth=1;x.strokeRect(W-160,H-40,150,30);
+  x.fillStyle='#3a2010';x.font='bold 9px IBM Plex Mono';x.textAlign='left';
+  x.fillText('HOLE 03 · REV A · 1:50', W-155, H-25);
+  x.fillText('COSMIC LINKS — 9 HOLES', W-155, H-15);
+
+  function drawSchemWall(x,px,py,pw,ph){
+    x.fillStyle='#a06840';x.fillRect(px,py,pw,ph);
+    x.strokeStyle='#3a1808';x.lineWidth=1.2;x.strokeRect(px+0.6,py+0.6,pw-1.2,ph-1.2);
+    // hatch pattern
+    x.strokeStyle='rgba(30,15,5,0.55)';x.lineWidth=0.6;
+    const isHoriz=pw>ph;
+    if(isHoriz){for(let i=-ph;i<pw;i+=5){x.beginPath();x.moveTo(px+i,py);x.lineTo(px+i+ph,py+ph);x.stroke();}}
+    else{for(let i=-pw;i<ph;i+=5){x.beginPath();x.moveTo(px,py+i);x.lineTo(px+pw,py+i+pw);x.stroke();}}
+    // divisions
+    x.strokeStyle='#3a1808';x.lineWidth=0.8;
+    if(isHoriz){for(let i=100;i<pw;i+=100){x.beginPath();x.moveTo(px+i,py);x.lineTo(px+i,py+ph);x.stroke();}}
+    else{for(let i=100;i<ph;i+=100){x.beginPath();x.moveTo(px,py+i);x.lineTo(px+pw,py+i);x.stroke();}}
+  }
+  function drawSchemWindmill(x,w){
+    x.save();
+    // base circle
+    x.fillStyle='#c0a080';x.beginPath();x.arc(w.cx,w.cy,w.base,0,7);x.fill();
+    x.strokeStyle='#3a1808';x.lineWidth=1.5;x.stroke();
+    // radial hatch
+    x.strokeStyle='rgba(90,60,30,0.5)';x.lineWidth=0.7;
+    for(let a=0;a<8;a++){x.beginPath();x.moveTo(w.cx,w.cy);x.lineTo(w.cx+Math.cos(a/8*Math.PI*2)*w.base,w.cy+Math.sin(a/8*Math.PI*2)*w.base);x.stroke();}
+    // blades outline
+    x.save();x.translate(w.cx,w.cy);
+    for(let a=0;a<4;a++){
+      x.rotate(Math.PI/2);
+      x.fillStyle='#f0e0b8';x.fillRect(0,-5,w.bladeR,10);
+      x.strokeStyle='#3a1808';x.lineWidth=1;x.strokeRect(0,-5,w.bladeR,10);
+      // rotation arrow
+    }
+    x.restore();
+    // rotation direction arrow (dashed circle w/ arrowhead)
+    x.strokeStyle='rgba(140,60,30,0.7)';x.lineWidth=1;x.setLineDash([3,3]);
+    x.beginPath();x.arc(w.cx,w.cy,w.bladeR+8,-Math.PI*0.9,-Math.PI*0.1);x.stroke();
+    x.setLineDash([]);
+    // hub
+    x.fillStyle='#3a1808';x.beginPath();x.arc(w.cx,w.cy,6,0,7);x.fill();
+    // label
+    x.fillStyle='#3a1808';x.font='bold 9px IBM Plex Mono';x.textAlign='left';x.fillText('WINDMILL — 4 BLADES @ 6 RPM',w.cx+w.bladeR+16,w.cy+3);
+    x.restore();
+  }
+  function drawSchemCup(x,cup){
+    x.save();
+    // cup circle
+    x.strokeStyle='#3a2010';x.lineWidth=1.5;
+    x.fillStyle='#1a1a1a';x.beginPath();x.arc(cup.cx,cup.cy,cup.r,0,7);x.fill();
+    x.beginPath();x.arc(cup.cx,cup.cy,cup.r,0,7);x.stroke();
+    // crosshair
+    x.beginPath();x.moveTo(cup.cx-cup.r-4,cup.cy);x.lineTo(cup.cx+cup.r+4,cup.cy);x.moveTo(cup.cx,cup.cy-cup.r-4);x.lineTo(cup.cx,cup.cy+cup.r+4);x.stroke();
+    // flag icon
+    x.strokeStyle='#3a2010';x.lineWidth=1.5;x.beginPath();x.moveTo(cup.cx,cup.cy);x.lineTo(cup.cx+22,cup.cy-30);x.stroke();
+    x.fillStyle='#c04a3a';x.beginPath();x.moveTo(cup.cx+22,cup.cy-30);x.lineTo(cup.cx+40,cup.cy-24);x.lineTo(cup.cx+24,cup.cy-18);x.closePath();x.fill();
+    x.strokeStyle='#3a2010';x.lineWidth=1;x.stroke();
+    // label
+    x.fillStyle='#3a2010';x.font='bold 9px IBM Plex Mono';x.textAlign='left';
+    x.fillText('CUP · ⌀ 108 mm', cup.cx+8, cup.cy+15);
+    x.restore();
+  }
+  function drawSchemTee(x,t){
+    x.save();
+    x.fillStyle='#a8a898';x.fillRect(t.x,t.y,t.w,t.h);
+    x.strokeStyle='#3a1808';x.lineWidth=1.5;x.strokeRect(t.x+0.75,t.y+0.75,t.w-1.5,t.h-1.5);
+    // diagonal hatch
+    x.strokeStyle='rgba(60,40,20,0.4)';x.lineWidth=0.5;
+    for(let i=-t.h;i<t.w;i+=4){x.beginPath();x.moveTo(t.x+i,t.y);x.lineTo(t.x+i+t.h,t.y+t.h);x.stroke();}
+    x.fillStyle='#3a1808';x.font='bold 9px IBM Plex Mono';x.textAlign='center';x.textBaseline='middle';x.fillText('TEE 3', t.x+t.w/2, t.y+t.h/2);
+    // ball
+    x.fillStyle='#fff';x.beginPath();x.arc(t.ballCx,t.ballCy,7,0,7);x.fill();
+    x.strokeStyle='#3a1808';x.lineWidth=1;x.stroke();
+    x.beginPath();x.moveTo(t.ballCx-7,t.ballCy);x.lineTo(t.ballCx+7,t.ballCy);x.moveTo(t.ballCx,t.ballCy-7);x.lineTo(t.ballCx,t.ballCy+7);x.stroke();
+    // ball label
+    x.fillStyle='#3a1808';x.font='bold 8px IBM Plex Mono';x.textAlign='left';x.fillText('BALL · ⌀ 42.67mm',t.ballCx+10,t.ballCy+3);
+    x.restore();
+  }
+})();
+</script>
+</body>
+</html>
