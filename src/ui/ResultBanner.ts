@@ -2,6 +2,7 @@
  * Result banner shown when a hole is completed.
  */
 import Phaser from 'phaser';
+import { FONT_UI, FONT_MONO } from '@/util/fonts';
 import type { MedalTier } from '@/contracts/SaveState';
 import { UiButton } from '@/ui/UiButton';
 
@@ -23,7 +24,7 @@ export function showResult(scene: Phaser.Scene, opts: ResultOpts): void {
 
   scene.add
     .text(W / 2, H / 2 - 85, 'HOLE COMPLETE', {
-      fontFamily: 'Fredoka, sans-serif',
+      fontFamily: FONT_UI,
       fontSize: '22px',
       color: '#f0d670',
       fontStyle: '700',
@@ -42,7 +43,7 @@ export function showResult(scene: Phaser.Scene, opts: ResultOpts): void {
           : '#a25a3a';
   scene.add
     .text(W / 2, H / 2 - 40, medalTxt, {
-      fontFamily: 'Fredoka, sans-serif',
+      fontFamily: FONT_UI,
       fontSize: '36px',
       color: medalColor,
       fontStyle: '700',
@@ -54,7 +55,7 @@ export function showResult(scene: Phaser.Scene, opts: ResultOpts): void {
   const diffStr = diff === 0 ? 'PAR' : diff > 0 ? `+${diff}` : `${diff}`;
   scene.add
     .text(W / 2, H / 2, `${opts.strokes} shots · ${diffStr}`, {
-      fontFamily: 'IBM Plex Mono, monospace',
+      fontFamily: FONT_MONO,
       fontSize: '14px',
       color: '#c8b088',
     })
@@ -63,7 +64,7 @@ export function showResult(scene: Phaser.Scene, opts: ResultOpts): void {
 
   scene.add
     .text(W / 2, H / 2 + 24, `best: ${opts.best}`, {
-      fontFamily: 'IBM Plex Mono, monospace',
+      fontFamily: FONT_MONO,
       fontSize: '11px',
       color: '#8a7050',
     })

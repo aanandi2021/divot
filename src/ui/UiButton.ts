@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { FONT_UI } from '@/util/fonts';
 
 export class UiButton {
   constructor(
@@ -10,6 +11,7 @@ export class UiButton {
     label: string,
     onClick: () => void
   ) {
+    const dpr = window.devicePixelRatio || 2;
     const g = scene.add.graphics();
     g.fillStyle(0x8a5a28, 1);
     g.fillRoundedRect(x, y, w, h, 8);
@@ -19,12 +21,13 @@ export class UiButton {
     g.strokeRoundedRect(x, y, w, h, 8);
     const t = scene.add
       .text(x + w / 2, y + h / 2, label, {
-        fontFamily: 'Fredoka, sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '14px',
         color: '#ffe0b0',
-        fontStyle: '700',
+        fontStyle: 'bold',
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setResolution(dpr);
     const zone = scene.add
       .zone(x, y, w, h)
       .setOrigin(0)

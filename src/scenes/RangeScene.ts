@@ -3,8 +3,8 @@
  * Reuses the fairway/wall drawing pattern from HoleScene but with respawn logic.
  */
 import Phaser from 'phaser';
+import { FONT_MONO } from '@/util/fonts';
 import { HOLE_0_RANGE } from '@/config/holes/hole-0-range';
-import { GAME } from '@/config/game';
 import { PAL } from '@/util/palette';
 import { Ball } from '@/entities/Ball';
 import { Wall } from '@/entities/Wall';
@@ -33,7 +33,7 @@ export class RangeScene extends Phaser.Scene {
   }
 
   create(): void {
-    const W = GAME.width, H = GAME.height;
+    const { width: W, height: H } = this.scale;
     this.audio = new AudioSystem();
     this.shotsTaken = 0;
     this.lastDistance = 0;
@@ -64,7 +64,7 @@ export class RangeScene extends Phaser.Scene {
       g.strokePath();
       this.add
         .text(px, 542, `${m}m`, {
-          fontFamily: 'IBM Plex Mono, monospace',
+          fontFamily: FONT_MONO,
           fontSize: '11px',
           color: '#ffffff',
         })
@@ -126,7 +126,7 @@ export class RangeScene extends Phaser.Scene {
         H - 40,
         'click ball → drag cursor away (arrow appears) → click to fire · ESC returns to clubhouse',
         {
-          fontFamily: 'IBM Plex Mono, monospace',
+          fontFamily: FONT_MONO,
           fontSize: '12px',
           color: '#5a4a30',
         }

@@ -7,6 +7,7 @@
  * See Constitution V + spec.md FR-010..017.
  */
 import Phaser from 'phaser';
+import { FONT_MONO } from '@/util/fonts';
 import { PAL } from '@/util/palette';
 import { Ball } from '@/entities/Ball';
 
@@ -31,7 +32,7 @@ export class AimSystem {
     this.gfx = scene.add.graphics().setDepth(20);
     this.readout = scene.add
       .text(0, 0, '', {
-        fontFamily: 'IBM Plex Mono, monospace',
+        fontFamily: FONT_MONO,
         fontSize: '13px',
         color: '#f0d670',
         backgroundColor: '#000000aa',

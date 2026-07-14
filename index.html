@@ -4,11 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Divot</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=IBM+Plex+Mono:wght@500&display=swap"
-      rel="stylesheet"
-    />
     <style>
       html,
       body {
@@ -16,10 +11,16 @@
         height: 100%;
         background: #2a2418;
         overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
       }
       #game {
         width: 100%;
         height: 100%;
+      }
+      #game canvas {
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
       }
     </style>
   </head>

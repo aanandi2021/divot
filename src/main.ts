@@ -1,9 +1,8 @@
 /**
  * main.ts — Phaser.Game bootstrap.
- * Constitution VIII sketch pattern was Phaser CDN + vanilla JS. This is the v1: Vite + TS.
+ * Scale.RESIZE + high-DPI canvas so text renders crisp at native pixel size.
  */
 import Phaser from 'phaser';
-import { GAME } from '@/config/game';
 import { BootScene } from '@/scenes/BootScene';
 import { ClubhouseScene } from '@/scenes/ClubhouseScene';
 import { HoleScene } from '@/scenes/HoleScene';
@@ -14,15 +13,22 @@ const config: Phaser.Types.Core.GameConfig = {
   parent: 'game',
   backgroundColor: '#2a2418',
   scale: {
-    mode: Phaser.Scale.FIT,
+    // RESIZE fills the window at native pixel size — no bilinear stretch blur.
+    mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: GAME.width,
-    height: GAME.height,
+    width: window.innerWidth,
+    height: window.innerHeight,
+  },
+  // High-DPI rendering: use device pixel ratio so text is crisp on Retina.
+  render: {
+    antialias: true,
+    roundPixels: true,
+    pixelArt: false,
   },
   physics: {
     default: 'matter',
     matter: {
-      gravity: { x: 0, y: 0 }, // top-down — no gravity
+      gravity: { x: 0, y: 0 },
       debug: false,
       enableSleeping: false,
     },

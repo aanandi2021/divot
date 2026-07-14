@@ -2,6 +2,7 @@
  * Draws a rubber tee mat with a "TEE N" label.
  */
 import Phaser from 'phaser';
+import { FONT_MONO } from '@/util/fonts';
 import { PAL } from '@/util/palette';
 
 export function drawTeeMat(
@@ -21,7 +22,7 @@ export function drawTeeMat(
   g.strokeRect(x + 1, y + 1, w - 2, h - 2);
   scene.add
     .text(x + w / 2, y + h / 2, label, {
-      fontFamily: 'IBM Plex Mono, monospace',
+      fontFamily: FONT_MONO,
       fontSize: '10px',
       color: '#e8c848',
       fontStyle: '700',

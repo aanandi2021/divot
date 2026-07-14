@@ -11,6 +11,8 @@ import { Ball, BALL_FRICTION_AIR } from '@/entities/Ball';
 import { Wall } from '@/entities/Wall';
 import { Windmill } from '@/entities/Windmill';
 import { Bumper } from '@/entities/Bumper';
+import { Slope } from '@/entities/Slope';
+import { WaterHazard } from '@/entities/WaterHazard';
 import { drawCup, CUP_CAPTURE_RADIUS, CUP_MAX_CAPTURE_SPEED } from '@/entities/Cup';
 import { drawTeeMat } from '@/entities/TeeMat';
 import { AimSystem } from '@/systems/AimSystem';
@@ -44,7 +46,7 @@ export class HoleScene extends Phaser.Scene {
   }
 
   create(): void {
-    const W = GAME.width, H = GAME.height;
+    const { width: W, height: H } = this.scale;
     this.shots = 0;
     this.complete = false;
     this.audio = new AudioSystem();
@@ -78,7 +80,11 @@ export class HoleScene extends Phaser.Scene {
       } else if (o.kind === 'bumper') {
         new Bumper(this, o.x, o.y, o.radius);
       }
-      // Other obstacle kinds: TBD (sliding-gate, pendulum, ferry, tunnel, loop)
+    }
+
+    // Draw water hazards (BEFORE ball so it renders below)
+    for (const w of this.cfg.hazards.water) {
+      new WaterHazard(this, w.x, w.y, w.w, w.h);
     }
 
     // Tee mat
@@ -91,6 +97,11 @@ export class HoleScene extends Phaser.Scene {
 
     // Ball
     this.ball = new Ball(this, this.cfg.tee.x, this.cfg.tee.y);
+
+    // Slopes — need the ball reference so must be constructed after
+    for (const s of this.cfg.slopes) {
+      new Slope(this, this.ball, { x: s.x, y: s.y, w: s.w, h: s.h, gravity: s.gravity });
+    }
 
     // Aim
     this.aim = new AimSystem(this, this.ball);
@@ -110,7 +121,7 @@ export class HoleScene extends Phaser.Scene {
       this.scene.start('Clubhouse')
     );
 
-    // Wall / windmill bounce sfx
+    // Wall / windmill / bumper / water bounce sfx
     this.matter.world.on('collisionstart', (event: Phaser.Physics.Matter.Events.CollisionStartEvent) => {
       for (const pair of event.pairs) {
         const a = pair.bodyA as unknown as { label: string; velocity: { x: number; y: number } };
@@ -120,6 +131,8 @@ export class HoleScene extends Phaser.Scene {
         const other = a === ballBody ? b.label : a.label;
         if (other === 'wall' || other === 'windmill' || other === 'windmill-base' || other === 'bumper') {
           this.audio.bounce(Math.hypot(ballBody.velocity.x, ballBody.velocity.y));
+        } else if (other === 'water' && !this.complete) {
+          this.handleWater();
         }
       }
     });
@@ -156,6 +169,17 @@ export class HoleScene extends Phaser.Scene {
         }
       }
     }
+  }
+
+  private handleWater(): void {
+    this.audio.splash();
+    // +1 stroke penalty
+    this.shots++;
+    this.hudShots.update(String(this.shots));
+    // Respawn at tee after brief delay
+    this.time.delayedCall(200, () => {
+      this.ball.setPosition(this.cfg.tee.x, this.cfg.tee.y);
+    });
   }
 
   private finishHole(): void {

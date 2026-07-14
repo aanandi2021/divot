@@ -3,7 +3,7 @@
  * Only implemented holes are clickable. Back Six show a padlock unless unlocked.
  */
 import Phaser from 'phaser';
-import { GAME } from '@/config/game';
+import { FONT_UI, FONT_MONO } from '@/util/fonts';
 import { ALL_PINS } from '@/config/holes';
 import { SaveSystem } from '@/systems/SaveSystem';
 import { isBackSixUnlocked } from '@/systems/UnlockSystem';
@@ -15,7 +15,7 @@ export class ClubhouseScene extends Phaser.Scene {
   }
 
   create(): void {
-    const W = GAME.width, H = GAME.height;
+    const { width: W, height: H } = this.scale;
     // Rich green background
     const bg = this.add.graphics();
     bg.fillGradientStyle(0x2a4a20, 0x2a4a20, 0x1a3a18, 0x1a3a18, 1);
@@ -24,7 +24,7 @@ export class ClubhouseScene extends Phaser.Scene {
     // Title
     this.add
       .text(W / 2, 48, 'DIVOT', {
-        fontFamily: 'Fredoka, sans-serif',
+        fontFamily: FONT_UI,
         fontSize: '52px',
         color: '#f0d670',
         fontStyle: '700',
@@ -33,7 +33,7 @@ export class ClubhouseScene extends Phaser.Scene {
       .setResolution(2);
     this.add
       .text(W / 2, 92, 'the clubhouse', {
-        fontFamily: 'IBM Plex Mono, monospace',
+        fontFamily: FONT_MONO,
         fontSize: '13px',
         color: '#a89880',
       })
@@ -51,7 +51,7 @@ export class ClubhouseScene extends Phaser.Scene {
     const goldCount = Object.values(save.medals).filter((m) => m === 'gold').length;
     this.add
       .text(W / 2, 118, `🥉 ${bronzeCount}   🥈 ${silverCount}   🥇 ${goldCount}`, {
-        fontFamily: 'IBM Plex Mono, monospace',
+        fontFamily: FONT_MONO,
         fontSize: '13px',
         color: '#c8b088',
       })
@@ -94,7 +94,7 @@ export class ClubhouseScene extends Phaser.Scene {
       if (best !== undefined && pin.id !== 0) {
         this.add
           .text(x + 12, y + 10, `best ${best}`, {
-            fontFamily: 'IBM Plex Mono, monospace',
+            fontFamily: FONT_MONO,
             fontSize: '10px',
             color: '#c8b088',
           })
@@ -105,7 +105,7 @@ export class ClubhouseScene extends Phaser.Scene {
       const label = pin.id === 0 ? pin.name : `${pin.id} · ${pin.name}`;
       this.add
         .text(x + pinW / 2, y + pinH / 2 - 6, label, {
-          fontFamily: 'Fredoka, sans-serif',
+          fontFamily: FONT_UI,
           fontSize: '13px',
           color: locked ? '#6a5a48' : '#ffe0b0',
           fontStyle: '700',
@@ -118,7 +118,7 @@ export class ClubhouseScene extends Phaser.Scene {
       if (!pin.implemented) {
         this.add
           .text(x + pinW / 2, y + pinH - 16, 'coming soon', {
-            fontFamily: 'IBM Plex Mono, monospace',
+            fontFamily: FONT_MONO,
             fontSize: '9px',
             color: '#8a7060',
           })
@@ -127,7 +127,7 @@ export class ClubhouseScene extends Phaser.Scene {
       } else if (locked) {
         this.add
           .text(x + pinW / 2, y + pinH - 16, '🔒 locked', {
-            fontFamily: 'IBM Plex Mono, monospace',
+            fontFamily: FONT_MONO,
             fontSize: '9px',
             color: '#8a7060',
           })
@@ -193,7 +193,7 @@ export class ClubhouseScene extends Phaser.Scene {
     // Footer help
     this.add
       .text(W / 2, H - 30, 'click a pin to play · earn medals on all 9 front nine to unlock the back six', {
-        fontFamily: 'IBM Plex Mono, monospace',
+        fontFamily: FONT_MONO,
         fontSize: '10px',
         color: '#8a7060',
       })

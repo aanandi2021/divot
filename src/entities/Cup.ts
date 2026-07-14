@@ -3,6 +3,7 @@
  * (per Sketch 01 learnings — Matter sensor collisions alone are unreliable at speed).
  */
 import Phaser from 'phaser';
+import { FONT_MONO } from '@/util/fonts';
 import { PAL } from '@/util/palette';
 
 export const CUP_RADIUS = 12;
@@ -38,7 +39,7 @@ export function drawCup(scene: Phaser.Scene, cx: number, cy: number, label: stri
 
   scene.add
     .text(cx + 34, cy - 24, label, {
-      fontFamily: 'IBM Plex Mono, monospace',
+      fontFamily: FONT_MONO,
       fontSize: '10px',
       color: '#ffffff',
     })

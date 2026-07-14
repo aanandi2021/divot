@@ -1,8 +1,8 @@
 /**
- * BootScene — waits for critical fonts to actually load (not just DOM ready),
- * then transitions to Clubhouse.
+ * BootScene — transitions to Clubhouse. Uses system fonts so no CDN wait needed.
  */
 import Phaser from 'phaser';
+import { FONT_UI, FONT_MONO } from '@/util/fonts';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -11,42 +11,25 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     const { width: W, height: H } = this.scale;
-    // Loading placeholder — uses a system font so it renders even before Fredoka loads
     this.add
       .text(W / 2, H / 2, 'DIVOT', {
-        fontFamily: 'Helvetica, Arial, sans-serif',
-        fontSize: '48px',
+        fontFamily: FONT_UI,
+        fontSize: '56px',
         color: '#f0d670',
         fontStyle: 'bold',
       })
       .setOrigin(0.5)
-      .setResolution(2);
+      .setResolution(window.devicePixelRatio || 2);
     this.add
-      .text(W / 2, H / 2 + 44, 'loading…', {
-        fontFamily: 'Helvetica, Arial, sans-serif',
-        fontSize: '13px',
+      .text(W / 2, H / 2 + 48, 'loading…', {
+        fontFamily: FONT_MONO,
+        fontSize: '14px',
         color: '#a89880',
       })
       .setOrigin(0.5)
-      .setResolution(2);
-
-    // Force-load the critical fonts we use in the game
-    const fontsApi = (document as unknown as {
-      fonts?: { load(spec: string): Promise<unknown>; ready?: Promise<unknown> };
-    }).fonts;
-    const start = () => this.scene.start('Clubhouse');
-    if (fontsApi) {
-      Promise.all([
-        fontsApi.load('700 52px "Fredoka"'),
-        fontsApi.load('500 16px "Fredoka"'),
-        fontsApi.load('500 13px "IBM Plex Mono"'),
-        fontsApi.ready ?? Promise.resolve(),
-      ])
-        .then(() => start())
-        .catch(() => start());
-    } else {
-      this.time.delayedCall(300, start);
-    }
+      .setResolution(window.devicePixelRatio || 2);
+    // System fonts render instantly — go quickly
+    this.time.delayedCall(120, () => this.scene.start('Clubhouse'));
   }
 }
 
