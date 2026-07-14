@@ -57,6 +57,13 @@ export class ClubhouseScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    // First-time Back Six unlock celebration
+    if (unlocked && !save.hasSeenBackSixCelebration) {
+      this.time.delayedCall(400, () => this.showUnlockCelebration());
+      const next = { ...save, hasSeenBackSixCelebration: true, backSixUnlocked: true };
+      SaveSystem.save(next);
+    }
+
     // Course-map layout: 4 columns × 4 rows-ish
     const startY = 170;
     const pinW = 172, pinH = 96;
@@ -198,5 +205,63 @@ export class ClubhouseScene extends Phaser.Scene {
         color: '#8a7060',
       })
       .setOrigin(0.5);
+  }
+
+  private showUnlockCelebration(): void {
+    const { width: W, height: H } = this.scale;
+    const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.6).setDepth(50);
+    const bannerBg = this.add
+      .rectangle(W / 2, H / 2, 560, 220, 0x1a1510, 0.98)
+      .setStrokeStyle(4, 0xf0c840)
+      .setDepth(51);
+    const t1 = this.add
+      .text(W / 2, H / 2 - 50, '🎉  BACK SIX UNLOCKED  🎉', {
+        fontFamily: FONT_UI,
+        fontSize: '26px',
+        color: '#f0c840',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5)
+      .setResolution(window.devicePixelRatio || 2)
+      .setDepth(52)
+      .setAlpha(0);
+    const t2 = this.add
+      .text(W / 2, H / 2 + 4, 'You earned medals on every hole of the Front Nine.', {
+        fontFamily: FONT_MONO,
+        fontSize: '13px',
+        color: '#c8b088',
+      })
+      .setOrigin(0.5)
+      .setResolution(window.devicePixelRatio || 2)
+      .setDepth(52)
+      .setAlpha(0);
+    const t3 = this.add
+      .text(W / 2, H / 2 + 40, 'The Mystery Course awaits.', {
+        fontFamily: FONT_MONO,
+        fontSize: '13px',
+        color: '#a89880',
+        fontStyle: 'italic',
+      })
+      .setOrigin(0.5)
+      .setResolution(window.devicePixelRatio || 2)
+      .setDepth(52)
+      .setAlpha(0);
+    // Fade in text
+    this.tweens.add({ targets: [t1, t2, t3], alpha: 1, duration: 500, delay: 200, ease: 'Quad.easeOut' });
+    // Auto-dismiss after 4s
+    this.time.delayedCall(4000, () => {
+      this.tweens.add({
+        targets: [overlay, bannerBg, t1, t2, t3],
+        alpha: 0,
+        duration: 400,
+        onComplete: () => {
+          overlay.destroy();
+          bannerBg.destroy();
+          t1.destroy();
+          t2.destroy();
+          t3.destroy();
+        },
+      });
+    });
   }
 }

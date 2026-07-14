@@ -9,6 +9,8 @@ export interface SaveState {
   medals: Record<number, MedalTier>;
   bestScores: Record<number, number>;
   backSixUnlocked: boolean;
+  /** True once the player has seen the "Back Six unlocked!" celebration. */
+  hasSeenBackSixCelebration?: boolean;
   mutedAudio: boolean;
 }
 
@@ -18,6 +20,7 @@ export function emptySave(): SaveState {
     medals: {},
     bestScores: {},
     backSixUnlocked: false,
+    hasSeenBackSixCelebration: false,
     mutedAudio: false,
   };
 }
